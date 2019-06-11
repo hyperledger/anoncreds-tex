@@ -1,0 +1,563 @@
+\documentclass[a4paper]{article}
+\pagestyle{plain}
+\usepackage[hmargin=2cm,vmargin=2cm]{geometry}
+\usepackage{amssymb,amsthm,amsmath,amsfonts,longtable, comment,array, ifpdf, hyperref,url,algorithm, algorithmicx, listings, xcolor}
+\usepackage{graphicx, etoolbox}
+\usepackage{enumitem}
+\newcommand{\fullpaper}{}
+
+\title{Pairings-based Anonymous Credentials with Circuit-based Revocation and Permission Policies}
+\author{Michael Lodder, Brent Zundel, Dmitry Khovratovich}
+\date{29 May 2019, version 0.6}
+
+\hypersetup{
+    colorlinks=true,
+    linkcolor=blue,
+    filecolor=magenta,      
+    urlcolor=blue,
+    bookmarks=true,
+    pdfpagemode=FullScreen,
+}
+
+\definecolor{background}{HTML}{EEEEEE}
+
+\lstdefinelanguage{json}{
+    basicstyle=\fontsize{7}{7}\tt,
+%    numbers=left,
+%    numberstyle=\scriptsize,
+%    stepnumber=1,
+%    numbersep=8pt,
+%    showstringspaces=false,
+%    breaklines=true,
+    linewidth=13.45cm,
+    captionpos=b,
+    xleftmargin=100pt,
+    backgroundcolor=\color{background},
+}
+
+\begin{document}
+
+\maketitle
+\newlist{legal}{enumerate}{10}
+\setlist[legal]{label*=\arabic*.}
+
+\section{Introduction}
+\emph{Anonymous credentials} allow holders to prove characteristics about the subject of the credential in an uncorrelated way without revealing other details. The characteristics proven may be raw attributes such as birth date or address, or more sophisticated predicates such as ``the subject was born before 1970''. 
+
+\emph{Pairings-based anonymous credentials} make use of elliptic curves to create credential signatures, see \cite{CamenischDL16} and \cite{SBBD}. This allows the signatures to be smaller and rely on smaller keys without sacrificing security.
+
+This protocol makes use of Merkle trees and circuit-based proving systems to provide a mechanism for proving non-revocation of credentials via zero-knowledge proof of set-membership. We also introduce the notion of \emph{permission policies}, which allow user agents to provide a similar proof of set-membership to show they are authorized actors.
+
+\subsection{Prior Art}
+Various anonymous credential schemes are discussed in \cite{CamenischDL16}\footnote{See section 4.3-5.1}, \href{https://domino.research.ibm.com/library/cyberdig.nsf/1e4115aea78b6e7c85256b360066f0d4/eeb54ff3b91c1d648525759b004fbbb1?OpenDocument}{[2]} and \cite{SBBD}, \cite{CamenischKS09}, ~\cite{CamenischL02}. Hyperledger Indy is purpose-built to facilitate decentralized identity using anonymous credentials. Indy currently uses RSA based CL signatures  \href{https://domino.research.ibm.com/library/cyberdig.nsf/1e4115aea78b6e7c85256b360066f0d4/eeb54ff3b91c1d648525759b004fbbb1?OpenDocument}{[2]} with range proofs from \cite{CamChaShe08} and the pairings-based CKS signature for non-revocation credentials \cite{CamenischKS09}.
+
+This proposal builds on existing work from Hyperledger Indy. BBS+ signatures will be faster to generate keys, sign credentials, and create proofs due to the smaller key sizes of elliptic curves, no prime numbers to use for keys, and one less correctness proof to check. Other advantages proposed here include faster predicate proofs from using elliptic curve cryptography vs. RSA, and Merkle trees vs. accumulators. 
+
+\section{Preliminaries}
+\subsection{Assumptions}
+We follow the set of assumptions found in \cite{BBBPWM18} and \cite{CamenischDL16}.
+
+\subsection{Building Blocks}
+This anonymous credential protocol combines different cryptographic components to allow flexibility and privacy among the involved parties. 
+These components include Pedersen commitments, Pedersen vector commitments, and Bulletproofs from \cite{BBBPWM18}, Pointcheval-Sanders Signatures \cite{manu-paper}, BBS+ signatures \cite{CamenischDL16}, zk-SNARKs \cite{ZCashSapling}, as well as cryptographic hashes. 
+
+Supported proofs:
+
+\begin{itemize}
+    \item Knowledge of the signature over the set of attributes
+    \item Knowledge of attributes without revealing their respective values
+    \item An attribute's value lies within a numeric range e.g., $50 \leq value \leq 100$
+    \item An attribute's value is not equal to another value
+    \item An attribute's value is or is not a member of a set
+\end{itemize}
+
+\section{Overview}
+We assume three parties: \emph{issuer}, \emph{holder}, and \emph{verifier}. The issuer gives the holder a credential which asserts claims about a subject. The credential consists of attributes represented by integers. The holder may presents proofs based on the credential to a verifier, which can verify that the issuer asserted the claims. 
+
+\subsection{Credential Flow}
+A example of a simple credential flow using the Indy ledger, with one credential and a single issuer, holder, and verifier:
+\begin{enumerate}
+    \item Issuer selects a credential schema and determines the mapping from that schema to a flat array of integer values.
+    \item Issuer creates a credential definition which contains:
+    \begin{enumerate}
+        \item the public key for the cryptographic signatures used to sign the credentials, 
+        \item a proving key for set-membership proofs
+        \item a reference to the schema and the mapping
+    \end{enumerate}
+    \item Issuer then publishes the credential definition on the ledger. 
+    \item Holder retrieves the credential definition from the ledger.
+    \item Holder requests a credential from the issuer. 
+    \begin{enumerate}
+        \item He blinds hidden attributes and sends them to the issuer,
+        \item agrees on the values of known attributes.
+    \end{enumerate}
+    \item Issuer returns a credential to the holder. The credential contains the requested attributes and asserts the non-revocation status of credential. It also contains a partial signature.
+    \item Holder verifies the attributes in the credential and completes the signature.
+    \item Issuer publishes the non-revoked status of the credential on the ledger.
+    \item Holder approaches a verifier. The verifier sends a presentation request to the holder. The presentation request contains a set of requested attributes and disclosure predicates. 
+    The predicates may be equal-to, not equal-to, greater-than, less-than, or set-membership.
+    \item Holder checks that the credential he holds satisfies the presentation request. 
+    He retrieves the data needed to prove non-revocation from the ledger.
+    \item Holder creates a proof that he has a non-revoked credential satisfying the presentation request and sends it to the verifier.
+    \item Verifier verifies the proof.
+\end{enumerate}
+
+If there are multiple issuers, the holder obtains credentials from them independently. Credential chaining is accomplished by use of a link secret. The link secret is blinded as one of the hidden attributes in the credential. The holder should use the same link secret in all credentials. Verifiers should require a proof that the same link secret is hidden in each credential used in a presentation. 
+
+\subsection{Properties}
+
+Credentials are \emph{unforgeable} in the sense that no holder can fool a verifier with a credential not prepared by an issuer.
+
+We say that credentials are \emph{unlinkable} if it is impossible to correlate the presented credential across multiple presentations. This is accomplished by the holder \emph{proving} in zero-knowledge \emph{that he has a credential} rather than showing the credential. There are two facets of unlinkability. \emph{Issuer unlinkability} means that a presentation cannot be linked with a specific credential issuance. \emph{Verifier unlinkability} means that a presentation cannot be linked to another presentation.
+
+Issuer unlinkability comes from the issuer generating a sufficient number of ordinary unrelated credentials. Verifier unlinkability is optional. Linkable verification makes credentials \emph{one-time use} so that second and later presentations may be detected. This does not affect issuer unlinkability.
+
+\section{Protocol Description}
+\subsection{Generic Notation and Variables}
+\begin{itemize}
+    \item Credentials contain $L$ attributes represented as $m_1,\dots,m_L$
+    \item Sub-types of attributes $m$ are indicated with additional characters, as $mi_1$ or $ms_5$
+    \item Each attribute $m$ is a 256-bit signed integer. 
+    \item $||$ denotes a byte concatenation e.g. $a = 0100, b=1001, a||b \leftarrow 01001001$
+    \item $H()$ denotes a cryptographic hash function
+\end{itemize}
+\subsection{Credential Structure}
+A credential consists of a flat array of attribute values that is signed by an issuer. There are three types of attributes:
+\begin{enumerate}
+    \item Issuer attributes
+    \item Subject attributes
+    \item Blinded attributes
+\end{enumerate}
+Issuer attributes consist of meta-data about the issuer and credential. Examples of these include an issuer identifier, a credential issuance or expiration date, a revocation registry reference, etc.
+
+Subject attributes comprise the claims the issuer has made about one or more credential subjects. Examples of these include name, age, vehicle identification number, etc.
+
+Blinded attributes are known only to the holder. They are not attributes that may be revealed to a verifier, but knowledge of them can be proven by a holder as they are still signed by the issuer. Examples of these include the link secret, policy addresses, etc.
+
+
+\begin{center}
+    \begin{tabular}{|c|c|c|c|}
+         \hline
+         $m_{i_1} ... m_{i_j}$ & $m_{s_1} ... m_{s_k}$ & $m_{b_1} ... m_{b_l}$ \\
+         \hline
+         Issuer attributes & Subject attributes & Blinded attributes\\
+         \hline 
+    \end{tabular}\\
+    Note: the total number of attributes $m_i$, $m_s$, and $m_b$ is $j + k + l = L$
+\end{center}
+\subsection{Protocol Setup}
+
+Anonymous credentials are signed using BBS+ signatures. These signatures require an elliptic curve such that there can be defined:
+\begin{enumerate}
+    \item three groups $\mathbb{G}_1, \mathbb{G}_2, \mathbb{G}_T$ that have a prime order $p$, 
+    \item a type-3 pairing operation $e$ such that $e:\, \mathbb{G}_1 \times \mathbb{G}_2 \rightarrow \mathbb{G}_T$ \cite{GPS08}.
+    \item base generators $g_1 \in \mathbb{G}_1, g_2 \in \mathbb{G}_2$
+\end{enumerate}
+
+Indy uses the BLS12-381 curve in conjunction with the $ate$ type-3 pairing for $e$.
+
+\subsection{Holder Setup}
+\subsubsection{Link Secret}
+In order to link together multiple credentials, we use the same construction as in Idemix, but here we call it a emph{link secret} rather than a master secret.
+The holder generates a 256-bit random number as the link secret $K$. $m_{b_1} \leftarrow K$ for all credentials.
+
+\subsubsection{Policy Address}
+
+Entities that act on a holder's behalf are called Agents. 
+Holders control which agents are allowed to produce valid proofs using policies. Policies must be accessible in such a way that allows verifiers to check credential presentations made by agents. The policies are specified as a policy address. A holder defines policy permissions at a given address that grants authorizations to agents. The permissions are added to a single global set used by everyone. This preserves a holder's privacy by not revealing to which policy the holder is referring. 
+The holder generates a random 256-bit policy address $A$. $m_{b_2} \leftarrow A$ for all credentials.
+
+\subsection{Issuer Setup}
+
+The issuer chooses a credential \emph{schema}. The schema defines the Subject attributes $m_s$. The credential issuance protocol defines the Issuer attributes $m_i$ and the Blinded attributes $m_b$. The issuer then prepares
+
+\begin{itemize}
+    \item Randomly chosen blinding factor generator: $h_0 \leftarrow \mathbb{G}_1$.
+    \item Randomly chosen generators for issuer attributes: $h_{i_1},\ldots,h_{i_j} \leftarrow \mathbb{G}_1$.
+    \item Randomly chosen generators for subject attributes: $h_{s_1},\ldots,h_{s_k} \leftarrow \mathbb{G}_1$.
+    \item Randomly chosen generators for blinded attributes: $h_{b_1},\ldots,h_{b_l} \leftarrow \mathbb{G}_1$.
+    \item Random scalar $x \mod p$
+    \item Computes $w \leftarrow g_2^{x}$
+\end{itemize}
+
+The issuer's public key is $\{w, h_0, \{h_i\}, \{h_s\}, \{h_b\}\}$ and the secret key is $x$.
+
+\subsubsection{Proof of Setup Correctness}
+Issuer also creates the proof of knowledge of the secret key $x$ (if needed):
+\begin{enumerate}
+    \item Random generator $\overline{g_1} \leftarrow \mathbb{G}_1$.
+    \item Computes $\overline{g_2} \leftarrow \overline{g_1}^x$;
+    \item Random $r \mod p$.
+    \item Compute proof $\pi$ 
+    \begin{align*}
+        t_1 \leftarrow&g_2^r;\, 
+        t_2 \leftarrow \overline{g_1}^r;\\
+        c \leftarrow& H(\overline{g_1}||\overline{g_2}||t_1||t_2);\\
+        s\leftarrow&r+cx;\\
+        \pi\leftarrow& (\overline{g_1},\overline{g_2},s,c);
+    \end{align*}
+\end{enumerate}
+To verify the proof, compute: 
+\begin{align*}
+t_1' \leftarrow g_2^{s} w^{-c};\,
+t_2' \leftarrow \overline{g_1}^{s} \overline{g_2}^{-c};
+\end{align*}
+and check if
+$$
+c \overset{\text{?}}{=} H(\overline{g_1}||\overline{g_2}||t_1'||t_2')$$
+
+\subsubsection{Non Revocation Setup}
+Issued credentials may need to be \emph{revoked}. In this case, the issued credentials must have a credential index that is included in a revocation registry. This allows a holder to prove the credential has not been revoked. 
+
+Issuers use sparse Merkle trees to track the revocation status of credentials. The indices of revoked credentials correspond to the sparse Merkle tree leaves, therefore indices have a range from 1 to $2^q$ where $q$ is the depth of the Merkle tree. The index of a credential that has been revoked is included in the sparse Merkle tree. The index location in the Merkle tree for a credential that has not been revoked will have a $null$ value. Revocation registry setup involves pre-computing a sparse Merkle tree of $null$ values. The issuer should do this in advance of issuing credentials.
+
+The number of issuable credentials is not fixed. The size of the Merkle tree can be updated later if needed. It is recommended to pre-compute credential indices so the registry does not need to be updated with each issued credential. This limits the ability to correlate credential issuance with specific holders based on registry updates.
+
+Let $V$ denote the set of non-revoked indices, $k$ be the value at a location in the Merkle tree, $q$ be the depth of the Merkle tree, and $H$ be the Merkle tree hash function.
+
+Then we define
+\begin{align*}
+    k^0_{i} &\leftarrow 
+    \begin{cases}
+        H(i);\;\text{if $i\in V$}\\
+        H($\emph{null}$),\;\text{if $i\notin V$}
+    \end{cases}\\
+    k^q_{i} &\leftarrow H(k^{q-1}_{2i-1},k^{q-1}_{2i});\\
+    \mathcal{T} &\leftarrow k^q_1.
+\end{align*}
+Let us denote by $\mathcal{T}\leftarrow\mathcal{T}-i$ the removal of index $i$ from the tree $\mathcal{T}$.
+
+\subsection{Credential Issuance}
+Holder:
+\begin{itemize}
+    \item Establishes a connection with issuer and gets a 128-bit nonce\footnote{The issuance protocol relies on a nonce that the issuer trusts. The holder must not be the source of the nonce otherwise he could cheat. The nonce may be a random number generated by the issuer, or the latest Merkle root hash from the ledger.} $n_0$.
+    \item Uses $h_0, \{h_b\}$ from the issuer's public key and nonce $n_0$ to create the blinded attributes using the following process:
+    \begin{enumerate}
+        \item Generates random non-zero values
+        \begin{itemize}
+            \item $s' \mod p$
+            \item $\widetilde{s'} \mod p$
+            \item $\{r_{b_i} \mod p\}_{i \in I_b}$ where $I_b$ is the set of indices of blinded attributes $\{1,2,\ldots,l\}$
+        \end{itemize}
+        \item Computes
+        \begin{align}
+        U&\leftarrow (h_0^{s'}) \prod_{i \in I_b}{h_{b_i}^{m_b{_i}}}
+        \end{align}
+        \item Computes
+        \begin{align}
+        \widetilde{U}\leftarrow& (h_0^{\widetilde{s'}}) \prod_{i \in I_b}{h_{b_i}^{r_{b_i}}};&\quad c\leftarrow& H(U||\widetilde{U}||n_0);&\\
+        \widehat{s'}\leftarrow&\widetilde{s'} + c s';&\quad \{\widehat{r_{b_i}}\leftarrow&r_{b_i} + c m_{b_i}\}_{i \in I_b}
+        \end{align}
+    \end{enumerate}
+\end{itemize}
+
+The holder sends $\tau \leftarrow
+\{U, c, \widehat{s'}, \{\widehat{r_{b_i}}\}_{i \in I_b}\}$ to the issuer.\\\\
+Issuer:
+\begin{enumerate}
+    \item Receives $\tau$.
+    \item Verifies the correctness of $U$ using the following process:
+    \begin{enumerate}
+        \item Compute
+        $\widehat{U} \leftarrow (U^{-c}) (h_0^{\widehat{s'}}) \prod_{i \in I_b}{h_{b_i}^{\widehat{r_{b_i}}}}$
+        \item Verify
+        $c\overset{\text{?}}{=} H(U||\widehat{U}||n_0)$
+    \end{enumerate}
+    \item Determines values for issuer attributes, such as the credential index.
+    \item Issuer generates random $e,s''\leftarrow \mathbb{Z}_p$.
+    \item Issuer computes
+    \begin{align}
+    B \leftarrow&g_1 U h_0^{s''}\prod_{i\in I_i} h_{i_i}^{m_{i_i}}\prod_{i\in I_s} h_{s_i}^{m_{s_i}};&\\
+    A \leftarrow&B^{\frac{1}{e+x}};
+    \end{align}
+    where $I_i$ is the set of indices of issuer attributes and $I_s$ is the set of indices of subject attributes.
+    \end{enumerate}
+    
+Issuer sends $\mathcal{C}' \leftarrow \{A,e,s'',\{m_i\},\{m_s\}\}$ to the holder.\\\\
+Holder:
+\begin{itemize}
+    \item Receives $\mathcal{C}'$
+    \item Verifies the signature using the following process:
+    \begin{enumerate}
+        \item Compute $B\leftarrow g_1U h_0^{s''} \prod_{i\in I_i} h_{i_i}^{m_{i_i}}\prod_{i\in I_s} h_{s_i}^{m_{s_i}}$
+        \item Verify $e(A,wg_2^{e})\overset{\text{?}}{=}e(B,g_2)$.
+    \end{enumerate}
+    \item Computes $s \leftarrow (s' + s'') \mod{p}$
+    \item Store credential $\mathcal{C} = \{\{m_i\}, \{m_s\}, \{m_b\},A,e,s\}$.
+\end{itemize}
+
+\subsubsection{Revocation}
+Issuer identifies a credential to be revoked with index $i$, the Merkle tree $\mathcal{T}$, and non-revoked index set $V$. The credential is revoked using the following process:
+\begin{enumerate}
+\item Compute $V\leftarrow V\setminus\{i\}$;
+\item Compute $\mathcal{T} \leftarrow \mathcal{T} - i$.
+\item Publish $\{V,\mathcal{T}\}$.
+\end{enumerate}
+
+\subsection{Presentation}
+The holder uses the presentation protocol to prove statements to a verifier using his credentials.
+
+There are a number of statements that can be made about credential attributes in a proof presentation:
+\begin{itemize}
+    \item Hidden - the attribute value is not revealed, but statements are made about the attribute value:
+    \begin{itemize}
+        \item Fully Hidden - The only thing revealed about the attribute is that the holder knows the value.
+        \item Linked - The holder reveals that two attributes have the same value.
+        \item Partially Disclosed - The holder reveals some predicate about an attribute value.
+    \end{itemize}
+    \item Fully Disclosed - the attribute value is revealed.
+\end{itemize}
+\emph{Linked} means attributes that are proven equal across credentials but not revealed. Examples of these include the link secret and policy address, but any two attributes may be proven equal without revealing them.
+
+\emph{Partially disclosed} means some predicate about an attribute's value is revealed by statements such as $\geq, >, <, \leq, \neq$. This also includes set inclusion or set non-inclusion.
+
+\emph{Fully hidden} means an attribute's value is \emph{not disclosed} to the verifier, but the holder proves knowledge of the value.
+
+Linked, partially disclosed, and fully hidden attributes are all considered hidden attributes.
+
+\emph{Fully disclosed} means an attribute's value is \emph{disclosed} in its entirety to the verifier.
+
+\begin{center}
+    \begin{tabular}{|c|c|c|c|c|}
+         \hline
+         $m_{l_1} ... m_{l_i}$ & $m_{h_1} ... m_{h_j}$ & $m_{p_1} ... m_{p_k}$ & $m_{d_1} ... m_{d_l}$ \\
+         \hline
+         Linked & Hidden & Partially Disclosed & Fully Disclosed\\
+         \hline 
+    \end{tabular}\\
+    Note: the total number of attributes $m_l$, $m_h$, $m_p$, and $m_d$ is $i + j + k + l = L$
+\end{center}
+\subsubsection{Presentation Notation}
+Let $I_l, I_h, I_p, I_d$ be the set of attribute indices $\{1, 2, \ldots,i\}$ in a given credential $\mathcal{C}$ that are linked, hidden, partially disclosed, and fully disclosed, respectively. Let $I_L$ be the set of indices for all attributes in $\mathcal{C}$
+
+\subsubsection{Verifier Setup}
+For each desired partial disclosure proof, the verifier must select the constraints for the R1CS circuit that will be used by the holder to assert proofs.
+
+For each inequality, the verifier selects the term $v_i$ such that the statement $m_{p_i} \neq v_i$ may be proven by the holder.
+
+For each range proof, the verifier selects terms $a_i$ and $b_i$ such that the statement $a_i \leq m_{p_i} \leq b_i$ may be proven by the holder.
+
+For each set-membership proof, the verifier selects the terms in the set $\mathcal{S}$ or selects the Merkle tree $\mathcal{T}$.
+
+
+\subsubsection{Proof Description}
+For partially disclosed attribute values, the verifier creates a set of \emph{challenges}, one for each desired proof. A partial disclosure challenge consists of the terms and operations, the proving system, and the parameters needed to satisfy the challenge.
+
+For linked attributes, the verifier creates another set of challenges. A linked attribute challenge consists of the attribute values that must be proven equivalent in order to satisfy the challenge. 
+
+For revealed attributes, the challenge set consists of the attributes that must be revealed.
+
+The combined challenge sets comprise a proof description, which is sent to the holder.\newpage
+
+\begin{lstlisting}[language=json]
+"challenge": {
+    "statement": [
+        {
+            "operation": "GE",
+            "term": 20
+        },
+        {
+            "operation": "LE",
+            "term": 50
+        }
+    ],
+    "proofType": "bulletproofs",
+    "parameters": {
+        "generators": [
+            "0x3dd414f9...",
+            "0x6a44840c..."
+        ],
+        "curve": "BLS12-381"
+    }
+}
+\end{lstlisting}
+\begin{center}
+\begin{scriptsize}
+    challenge for $20 \leq m_{p_i} \leq 50$ using bulletproofs on the BLS12-381 curve.
+\end{scriptsize}
+\end{center}
+
+
+Note: The verifier may elect to further refine the proof description by specifying the set of acceptable issuers from whom a holder must have credentials, or the set of credential types from which an attribute value must be taken, etc. Such limitations are not discussed here as they are considered outside the scope of this work.
+
+\subsubsection{Proof Generation}
+\textbf{Selective Disclosure}\\\\
+Holder
+\begin{itemize}
+    \item Establishes a connection with issuer and gets a 128-bit nonce\footnote{The presentation protocol relies on a nonce that the verifier trusts. The holder must not be the source of the nonce otherwise he could cheat. The nonce may be a random number generated by the verifier, or the latest Merkle root hash from the ledger.} $n_1$.
+    \item Chooses the set of credentials $\{\mathcal{C}\}$ to use to satisfy the proof description.
+    \item Initializes empty sets $\mathcal{R}, \mathcal{U}, \mathcal{X}, \mathcal{Y}, \mathcal{Z}$.
+    \item Generates random non-zero values $\{\widetilde{m_{l_i}} \mod p\}_{i \in I_l}$.
+    \item For each $\mathcal{C}$
+    \begin{itemize}
+        \item Extract $A, e, s, \{m_i\}_{i \in I_L}$
+        \item Retrieve issuer public key $\{w, h_0, \{h_i\}_{i \in I_L}\}$ associated with $\mathcal{C}$
+        \item Generate random non-zero values $\{r_1,r_2,\widetilde{e},\widetilde{r_2},\widetilde{r_3},\widetilde{s'}\} \mod p$.
+        \item Generate random non-zero values $\{z_i,\widetilde{z_i}\}_{i\in I_p} \mod p$.
+        \item Compute 
+            \begin{itemize}
+                \item $\{Z_i \leftarrow h_1^{m_{p_i}}h_0^{z_i}\}_{i\in I_p}$
+            \end{itemize}
+        \item Add $\{Z_i\}$ to set $\mathcal{Z}$
+        \item Compute 
+            \begin{itemize}
+                \item $B \leftarrow g_1  h_0^{s}\prod_{1\leq i\leq L} h_i^{m_i}$
+                \item $A'\leftarrow A^{r_1}$
+                \item $\overline{A}\leftarrow A'^{-e}B^{r_1}$
+                \item $d\leftarrow B^{r_1}h_0^{r_2}$
+            \end{itemize}
+        \item Add $A', \overline{A}, d$ to set $\mathcal{R}$
+        \item Compute     
+            \begin{itemize}                \item $r_3\leftarrow r_1^{-1} \mod p$
+                \item $s'\leftarrow s+r_2r_3$
+            \end{itemize}
+        \item Add $r_2, r_3, s' , \widetilde{e},\widetilde{r_2},\widetilde{r_3},\{z_i, \widetilde{z_i}\}_{i \in I_p}$ to set $\mathcal{U}$
+        \item Compute 
+        \begin{itemize}
+                \item $t_1\leftarrow A'^{\widetilde{e}}h_0^{\widetilde{r_2}}$
+                \item $t_2 \leftarrow  d^{-\widetilde{r_3}}h_0^{\widetilde{s'}}\prod_{i\in I_h}h_i^{\widetilde{m_{h_i}}}\prod_{i\in I_p}h_i^{\widetilde{m_{p_i}}}\prod_{i\in I_l}h_i^{\widetilde{m_{l_i}}}$
+                \item $\{t_i'\leftarrow h_0^{\widetilde{z_i}}h_1^{\widetilde{m_{p_i}}}\}_{i\in I_p}$.
+            \end{itemize}
+        \item Add $t_1, t_2, \{t_i'\}$ to set $\mathcal{X}$
+    \end{itemize}
+    \item Compute 
+    \begin{itemize}
+        \item $c \leftarrow H(\mathcal{R}||\mathcal{X}||n_1)$
+        \item $\{\widehat{m_{l_i}} \leftarrow \widetilde{m_{l_i}} + c m_{l_i}\}_{i \in I_l}$
+        \item Add $\{\widehat{m_l}\}$ to set $\mathcal{Y}$
+    \end{itemize}
+    \item Using values in $\mathcal{U}$ for each $\mathcal{C}$ compute
+    \begin{itemize}
+        \item $\widehat{r_2} \leftarrow \widetilde{r_2} + c r_2$
+        \item $\widehat{r_3} \leftarrow \widetilde{r_3} + c r_3$
+        \item $\widehat{s'} \leftarrow \widetilde{s'} + c s'$
+        \item $\widehat{e} \leftarrow \widetilde{e} + c e$
+        \item $\{\widehat{m_{h_i}} \leftarrow \widetilde{m_{h_i}} + c m_{h_i}\}_{i \in I_h}$
+        \item $\{\widehat{m_{p_i}} \leftarrow \widetilde{m_{p_i}} + c m_{p_i}\}_{i \in I_p}$
+        \item $\{\widehat{z_i} \leftarrow \widetilde{z_i} + cz_i\}_{i \in I_p}$
+        \end{itemize}
+    \item Add $\widehat{r_2},\widehat{r_3},\widehat{s'},\widehat{e},\{\widehat{m_h}\},\{\widehat{m_p}\},\{\widehat{z_i}\}$ to set $\mathcal{Y}$
+\end{itemize}
+The holder sends $\pi \leftarrow \{c, \mathcal{R}, \mathcal{Y}, \mathcal{Z}, \{m_{d_i}\}_{i \in I_d}\}$ to the verifier.\\\\
+Verifier:
+\begin{itemize}
+    \item Receives $\pi$.
+    \item Initialize empty set $\mathcal{X}$
+    \item Checks proof using the following process:
+    \begin{itemize}
+        \item For each selective disclosure proof of $\mathcal{C}$
+        \begin{itemize}
+            \item Retrieve issuer public key $\{w, h_0, \{h_i\}_{i \in I_L}\}$ associated with proof of $\mathcal{C}$
+            \item Extract $A', \overline{A}, d$ in $\mathcal{R}$ associated with proof of $\mathcal{C}$
+            \item Extract other values from $\mathcal{Y}, \mathcal{Z}$
+            \item Compute
+            \begin{itemize}
+                \item $R \leftarrow g_1\prod_{i \in I_d}h_i^{m_{d_i}}$
+                \item $t_1 \leftarrow A'^{\widehat{e}}(\overline{A}/d)^{c}h_0^{\widehat{r_2}}$
+                \item $t_2 \leftarrow R^c h_0^{\widehat{s'}} d^{-\widehat{r_3}} \prod_{i \in I_l}h_i^{\widehat{m_{l_i}}} \prod_{i \in I_h}h_i^{\widehat{m_{h_i}}} \prod_{i \in I_p}h_i^{\widehat{m_{p_i}}}$
+                \item $\{t_i' \leftarrow Z_i^c h_0^{\widehat{z_i}}h_1^{\widehat{m_{p_i}}}\}_{i \in I_p}$
+            \end{itemize}
+            \item Add $\{t_1, t_2, \{t_i'\}\}$ to set $\mathcal{X}$
+            \item Verify
+            \begin{flalign*}
+                A'&\neq 1&\\ e(A',w)&\overset{\text{?}}{=}e(\overline{A}, g_2)&
+            \end{flalign*}
+        \end{itemize}
+        \item Verify $c \overset{\text{?}}{=}H(\mathcal{R}||\mathcal{X}||n_1)$
+    \end{itemize}
+\end{itemize}
+\textbf{Predicate Proofs}\\\\
+For each predicate proof, the commitments from set $\mathcal{Z}$ will be the inputs to the predicates. For example, the commitment $Z_i$ will exist in set $\mathcal{Z}$ for attribute $i$ from $\mathcal{C}$. The set $\mathcal{Z}$ is created from the selective disclosure step.\\\\
+\textbf{Inequality predicates}
+
+
+\subsubsection{Proof Verification}
+
+\section{Authorization Policy}
+\subsection{Introduction}
+
+Agents are granted PROVE authorization from commitments to private values in a policy address $I$. The ledger adds or removes these commitments to an accumulator that enables zero-knowledge proof of set membership. Agents can be added to be provisioners and revokers by admin agents. The provision or revoke policy can be changed to require more than one agent to agree on a change like 2 of 3. The ledger will enforce these rules by requiring multiple signatures complete the transaction.
+
+\subsection{Setup}
+
+\subsection{Common setup}
+Here is the setup common for all identity owners.
+\begin{itemize}
+\item Issuer Credential setup for Anoncreds 2.0 credentials: public key  and other details.
+\item Bulletproofs setup: elliptic curve scalar field $\mathbb{F}$, commitment group $\mathbb{G}$, and hash function $H$ that operates on $\mathbb{F}$.
+\end{itemize}
+
+\subsection{Bulletproofs Credential Lifecycle}
+
+An identity owner has created a policy address $I$ on the ledger with at least one authorized agent.
+
+\subsubsection{Issuance}
+
+\begin{itemize}
+    \item Identity Owner sends a Credential Request, which contains blinded attributes: link secret $l_s$ and policy address $I$.
+    \item Issuer provides credential $\Phi$  to Identity Owner.
+    \item Identity Owner gives $\Phi$ to Agents.
+\end{itemize}
+
+\subsubsection{Agent Authorization}
+Agents will prove they are authorized by presenting a zero-knowledge proof of a private key. They do this in the following way
+\begin{enumerate}
+    \item Agent has  private key $s$.
+    \item Agent  computes
+    $$
+    K = H(s).
+    $$
+    
+    \item Agent  computes the identifier
+    $$
+    P=H(K,I).
+    $$
+    \item Identity owner sends $K$ to the ledger in the PROVE authorization at address $I$;
+    \item The ledger adds $P$ to  the Merkle tree $\mathcal{T}$.
+\end{enumerate}
+
+\subsubsection{Bulletproofs setup}
+\begin{itemize}
+    \item Sovrin stewards generate a  circuit $\mathcal{C}$ that implements Algorithm~\ref{alg:ver-auth}.
+\end{itemize}
+
+
+    \begin{algorithm}[!ht]
+\textbf{Public Input:} $C_I,\mathcal{T}$.\\
+\textbf{Private Input:} $I$ (as commitment $C_I$), $O,s$.
+\begin{enumerate}
+    \item Compute $P=H(H(s),I)$.
+      \item Verify that $O$ is opening for $P$ in $\mathcal{T}$.
+    \end{enumerate} 
+    \caption{Authorization proof verification}\label{alg:ver-auth}
+\end{algorithm}
+
+\subsubsection{Proof Presentation}
+
+\begin{itemize}
+    \item Agent refreshes the revocation data from the non-revocation accumulator and Prover Registry.
+    \item Agent requests access from a Verifier.
+    \item Verifier sends a Proof Request: what must be proven and which attributes must be disclosed, denote the disclosed set by $D$.
+    \item Agent prepares a credential proof $\mathcal{P}$ that satisfies the Proof Request. The credential proof contains, among others, a commitment $C_I$ to the  policy address $I$.
+    \item Agent prepares a  proof of the following statement
+    $$
+    SPK\{(s,I): H(H(s),I)\in \mathcal{T}\,\wedge\,C_I = \mathrm{Comm}_{\mathbb{G}}(I)\}
+    $$
+    This is done by creating a  Bulletproofs proof $Z$ for circuit $\mathcal{C}$ with public inputs $C_I,\mathcal{T}$ and private input $s$.
+    \item Agent sends  $\mathcal{P}$ and $Z$.
+\end{itemize}
+
+
+Verifier verifies the attributes as part of a credential, and verifies proofs  $\mathcal{P}$ and $Z$.
+
+
+
+\section{Acknowledgements}
+
+\bibliographystyle{alpha}
+\bibliography{anoncreds2}
+
+\part{Appendices}
+\appendix
+
+\end{document}
