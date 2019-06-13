@@ -8,4 +8,4 @@ branches:
 
 script:
   - docker pull dxjoke/tectonic-docker
-  - docker run -v $TRAVIS_BUILD_DIR/specs/anoncreds2:/tex -w /tex dxjoke/tectonic-docker /bin/sh -c "tectonic anoncreds2.tex"
+  - /bin/bash $TRAVIS_BUILD_DIR/check.sh
