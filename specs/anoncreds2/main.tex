@@ -8,7 +8,7 @@
 
 \title{Pairings-based Anonymous Credentials with Circuit-based Revocation and Permission Policies}
 \author{Michael Lodder, Brent Zundel, Dmitry Khovratovich}
-\date{29 May 2019, version 0.6}
+\date{17 June 2019, version 0.7}
 
 \hypersetup{
     colorlinks=true,
@@ -38,6 +38,7 @@
 \begin{document}
 
 \maketitle
+\large{Status: In Progress}
 \newlist{legal}{enumerate}{10}
 \setlist[legal]{label*=\arabic*.}
 
@@ -394,9 +395,10 @@ Holder
         \item Retrieve issuer public key $\{w, h_0, \{h_i\}_{i \in I_L}\}$ associated with $\mathcal{C}$
         \item Generate random non-zero values $\{r_1,r_2,\widetilde{e},\widetilde{r_2},\widetilde{r_3},\widetilde{s'}\} \mod p$.
         \item Generate random non-zero values $\{z_i,\widetilde{z_i}\}_{i\in I_p} \mod p$.
-        \item Compute 
+        \item Computes for 
             \begin{itemize}
-                \item $\{Z_i \leftarrow h_1^{m_{p_i}}h_0^{z_i}\}_{i\in I_p}$
+                \item $\{Z_i \leftarrow h_1^{m_{p_i}}h_0^{z_i}\}_{i\in I_p}$ for inequalities $\geq, >,  \neq$; and set memberships
+                \item $\{Z_i \leftarrow h_1^{m_{p_i}}h_0^{-z_i}\}_{i\in I_p}$ for inequalities $<, \leq$
             \end{itemize}
         \item Add $\{Z_i\}$ to set $\mathcal{Z}$
         \item Compute 
@@ -439,6 +441,34 @@ Holder
     \item Add $\widehat{r_2},\widehat{r_3},\widehat{s'},\widehat{e},\{\widehat{m_h}\},\{\widehat{m_p}\},\{\widehat{z_i}\}$ to set $\mathcal{Y}$
 \end{itemize}
 The holder sends $\pi \leftarrow \{c, \mathcal{R}, \mathcal{Y}, \mathcal{Z}, \{m_{d_i}\}_{i \in I_d}\}$ to the verifier.\\\\
+\textbf{Predicate Proofs}\\\\
+For each predicate proof, the attributes $m_{p_i}$  from $\mathcal{C}$, random values $z_i$, and the predicate terms will be the inputs to the predicates. The verifier will  use the commitments from set $\mathcal{Z}$ to check the predicates. For example, the commitment $Z_i$ will exist in set $\mathcal{Z}$ for attribute $m_{p_i}$ from $\mathcal{C}$. The set $\mathcal{Z}$ is created from the selective disclosure step.\\\\
+\textbf{Inequality predicates}\\\\
+Inequality predicates are created using Bulletproof gadgets $\Phi_p$ for proving and $\Phi_v$ for verification as described in \cite{BBBPWM18}. Predicates $\geq,  >, <, \leq, \neq$ are supported. The holder takes the attribute $m_{p_i}$ from credential $\mathcal{C}$, random value $z_i$ from the selective disclosure step, and the term $a_i$ provided by the verifier and computes the following:
+$$
+\Delta \leftarrow \begin{cases}
+a_i-m_{p_i}; & \mbox{if } \leq\\
+a_i-m_{p_i}-1; & \mbox{if }  <\\
+m_{p_i}-a_i; & \mbox{if } \geq or \neq\\
+m_{p_i}-a_i-1; & \mbox{if } >
+\end{cases}
+$$
+and 
+$$
+\delta \leftarrow \begin{cases}
+z_i; &\mbox{if } \geq, >, \neq\\
+-z_i; &\mbox{if } \leq, <
+\end{cases}
+$$
+
+$\Delta$ and $\delta$ are inputs to the bound check and not zero bulletproof gadgets to compute $\{\tau_i, \alpha_i\} \leftarrow \Phi_p(\Delta, \delta, a_i)$. The gadget output is the bulletproof bound check proof $\tau_i$ and the commitment $\alpha_i\leftarrow h_1^{\Delta}h_0^{\delta}$.
+The holder sends $\{\tau_i, \alpha_i\}$ to the verifier.\\\\
+\textbf{Set membership proofs}\\\\
+Set membership predicates are created using Bulletproof gadgets $\Psi_p$ for proof generation and $\Psi_v$ for verification. The proof is constructed by taking a set of known values $\mathcal{S} = [a, b, c, d, e, f]$ and computing the difference between the set value at index $i$ and the value to be proved as a member $m_{p_i}$. The product of the difference is then computed. If the result is zero if $m_{p_i}$ is a value in the set and non-zero if not.
+The holder provides the attribute value $m_{p_i}$, random value $z_i$ from the selective disclosure step, and the term $[a, b, c, d, e, f]$ provided by the verifier and inputs to the set membership inclusion or exclusion proof gadget to compute $\sigma_i\leftarrow \Psi_p(m_{p_i}, z_i, \mathcal{S})$. The gadget output is the bullet proof membership proof $\sigma_i$. The holder sends $\sigma_i, \beta_i$ to the verifier.
+
+\subsubsection{Proof Verification}
+\textbf{Selective Disclosure}\\\\
 Verifier:
 \begin{itemize}
     \item Receives $\pi$.
@@ -466,91 +496,81 @@ Verifier:
         \item Verify $c \overset{\text{?}}{=}H(\mathcal{R}||\mathcal{X}||n_1)$
     \end{itemize}
 \end{itemize}
-\textbf{Predicate Proofs}\\\\
-For each predicate proof, the commitments from set $\mathcal{Z}$ will be the inputs to the predicates. For example, the commitment $Z_i$ will exist in set $\mathcal{Z}$ for attribute $i$ from $\mathcal{C}$. The set $\mathcal{Z}$ is created from the selective disclosure step.\\\\
-\textbf{Inequality predicates}
-
-
-\subsubsection{Proof Verification}
-
+\textbf{Inequality predicates}\\\\
+Verifier:
+\begin{itemize}
+    \item Receives $\{\tau_i, \alpha_i\}$
+    \item Takes commitment $Z_i$ from the selective disclosure proof and computes
+        $\alpha'_i \leftarrow \begin{cases}
+        Z_i h_1^{a_i};& \mbox{if } \geq, >, \neq\\
+        h_1^{a_i}/Z_i;& \mbox{if } \leq, <
+        \end{cases}$
+    \item Verifies
+    \begin{itemize}
+        \item $\alpha_i \overset{\text{?}}{=}\alpha'_i$
+        \item $\Phi_v(\tau_i, \alpha'_i, a_i)\overset{?}{=} 0$
+    \end{itemize}
+\end{itemize}
+\textbf{Set membership predicates}\\\\
+Verifier:
+\begin{itemize}
+    \item Receives $\sigma_i$
+    \item Takes commitment $Z_i$ from the selective disclosure proof and computes
+    \begin{itemize}
+        \item $\Psi_v(\sigma_i, Z_i, \mathcal{S}) \begin{cases}
+        \overset{?}{=} 0;&\mbox{if } inclusion\\
+        \overset{?}{\neq} 0;&\mbox{if } exclusion
+        \end{cases}$
+    \end{itemize}
+\end{itemize}
 \section{Authorization Policy}
 \subsection{Introduction}
 
-Agents are granted PROVE authorization from commitments to private values in a policy address $I$. The ledger adds or removes these commitments to an accumulator that enables zero-knowledge proof of set membership. Agents can be added to be provisioners and revokers by admin agents. The provision or revoke policy can be changed to require more than one agent to agree on a change like 2 of 3. The ledger will enforce these rules by requiring multiple signatures complete the transaction.
+Agents are granted PROVE authorization from commitments to private values in a policy address $I$. The ledger adds or removes these commitments to an accumulator $\mathcal{A}$ that enables zero-knowledge proof of set membership. Agents can be added to be provisioners and revokers by admin agents. The provision or revoke policy can be changed to require more than one agent to agree on a change like 2 of 3. The ledger will enforce these rules by requiring that multiple signatures complete the transaction.
 
 \subsection{Setup}
-
-\subsection{Common setup}
-Here is the setup common for all identity owners.
-\begin{itemize}
-\item Issuer Credential setup for Anoncreds 2.0 credentials: public key  and other details.
-\item Bulletproofs setup: elliptic curve scalar field $\mathbb{F}$, commitment group $\mathbb{G}$, and hash function $H$ that operates on $\mathbb{F}$.
-\end{itemize}
-
-\subsection{Bulletproofs Credential Lifecycle}
-
-An identity owner has created a policy address $I$ on the ledger with at least one authorized agent.
-
-\subsubsection{Issuance}
-
-\begin{itemize}
-    \item Identity Owner sends a Credential Request, which contains blinded attributes: link secret $l_s$ and policy address $I$.
-    \item Issuer provides credential $\Phi$  to Identity Owner.
-    \item Identity Owner gives $\Phi$ to Agents.
-\end{itemize}
-
+\textbf{Identity owners}\\\\
+An identity owner creates a policy address $I$ on the ledger with at least one authorized agent. During credential issuance, the holder includes policy address $I$ as a blinded attribute.\\\\
+\textbf{Ledger}\\\\
+Ledger nodes generate a system bulletproof circuit gadget $\Omega$ that proves an agent is authorized to use credentials associated with policy address $I$ and random bases $g_1,g_2 \leftarrow \mathbb{G}_1$. $\Omega_p$ is used for proof generation and $\Omega_v$ for proof verification. 
 \subsubsection{Agent Authorization}
 Agents will prove they are authorized by presenting a zero-knowledge proof of a private key. They do this in the following way
 \begin{enumerate}
-    \item Agent has  private key $s$.
-    \item Agent  computes
-    $$
-    K = H(s).
-    $$
-    
-    \item Agent  computes the identifier
-    $$
-    P=H(K,I).
-    $$
-    \item Identity owner sends $K$ to the ledger in the PROVE authorization at address $I$;
-    \item The ledger adds $P$ to  the Merkle tree $\mathcal{T}$.
+    \item Agent has private key $s$.
+    \item Agent computes 
+    \begin{itemize}
+        \item $K \leftarrow H(s)$
+        \item $\mathcal{I} \leftarrow H(K, I)$
+    \end{itemize}
+    \item Holder sends $K$ to the ledger in the PROVE authorization at address $I$;
+    \item The ledger adds $\mathcal{I}$ to the agent authorization accumulator $\mathcal{A}$
 \end{enumerate}
 
-\subsubsection{Bulletproofs setup}
+\subsubsection{Proof Generation}
+Agent prepares a proof of the following statement
+$$
+SPK\{(s,I): H(H(s),I)\in \mathcal{A}\,\wedge\,C_I = \mathrm{Comm}_I\}
+$$
+This is done by using the system's bulletproof gadget $\Omega_p$ with inputs $C_I,\mathcal{A}$ and private input $s$.\\\\
+Agent:
 \begin{itemize}
-    \item Sovrin stewards generate a  circuit $\mathcal{C}$ that implements Algorithm~\ref{alg:ver-auth}.
+    \item Refreshes the data from $\mathcal{A}$.
+    \item Generates random $r \mod p$
+    \item Computes
+    \begin{itemize}
+        \item $C_I \leftarrow g_1^Ig_2^r$
+        \item $\lambda \leftarrow \Omega_p(s, C_I, \mathcal{A})$
+    \end{itemize}
+    \item Sends $\{\lambda, C_I\}$ to Verifier
 \end{itemize}
 
-
-    \begin{algorithm}[!ht]
-\textbf{Public Input:} $C_I,\mathcal{T}$.\\
-\textbf{Private Input:} $I$ (as commitment $C_I$), $O,s$.
-\begin{enumerate}
-    \item Compute $P=H(H(s),I)$.
-      \item Verify that $O$ is opening for $P$ in $\mathcal{T}$.
-    \end{enumerate} 
-    \caption{Authorization proof verification}\label{alg:ver-auth}
-\end{algorithm}
-
-\subsubsection{Proof Presentation}
-
+\subsubsection{Proof Verification}
+Verifier:
 \begin{itemize}
-    \item Agent refreshes the revocation data from the non-revocation accumulator and Prover Registry.
-    \item Agent requests access from a Verifier.
-    \item Verifier sends a Proof Request: what must be proven and which attributes must be disclosed, denote the disclosed set by $D$.
-    \item Agent prepares a credential proof $\mathcal{P}$ that satisfies the Proof Request. The credential proof contains, among others, a commitment $C_I$ to the  policy address $I$.
-    \item Agent prepares a  proof of the following statement
-    $$
-    SPK\{(s,I): H(H(s),I)\in \mathcal{T}\,\wedge\,C_I = \mathrm{Comm}_{\mathbb{G}}(I)\}
-    $$
-    This is done by creating a  Bulletproofs proof $Z$ for circuit $\mathcal{C}$ with public inputs $C_I,\mathcal{T}$ and private input $s$.
-    \item Agent sends  $\mathcal{P}$ and $Z$.
+    \item Receives $\{\lambda, C_I\}$
+    \item Refreshes the data from $\mathcal{A}$
+    \item Verifies $\Omega_v(\lambda, C_I, \mathcal{A})$
 \end{itemize}
-
-
-Verifier verifies the attributes as part of a credential, and verifies proofs  $\mathcal{P}$ and $Z$.
-
-
 
 \section{Acknowledgements}
 
