@@ -306,49 +306,45 @@ There are a number of statements that can be made about credential attributes in
         \item Linked - The holder reveals that two attributes have the same value.
         \item Partially Disclosed - The holder reveals some predicate about an attribute value.
     \end{itemize}
-    \item Fully Disclosed - the attribute value is revealed.
+    \item Revealed - the attribute value is fully disclosed.
 \end{itemize}
+
+\emph{Fully hidden} means an attribute's value is \emph{not disclosed} to the verifier, but the holder proves knowledge of the value.
+
 \emph{Linked} means attributes that are proven equal across credentials but not revealed. Examples of these include the link secret and policy address, but any two attributes may be proven equal without revealing them.
 
 \emph{Partially disclosed} means some predicate about an attribute's value is revealed by statements such as $\geq, >, <, \leq, \neq$. This also includes set inclusion or set non-inclusion.
 
-\emph{Fully hidden} means an attribute's value is \emph{not disclosed} to the verifier, but the holder proves knowledge of the value.
+Fully hidden, linked, and partially disclosed attributes are all considered \emph{hidden} attributes.
 
-Linked, partially disclosed, and fully hidden attributes are all considered hidden attributes.
+\emph{Revealed} means an attribute's value is disclosed in its entirety to the verifier.
 
-\emph{Fully disclosed} means an attribute's value is \emph{disclosed} in its entirety to the verifier.
+Linked and partially disclosed attributes are not mutually exclusive, e.g., an attribute may be part of both a partially disclosed proof and a linked attribute proof. The set of fully hidden attributes consists of any attribute that is neither linked, partially disclosed, nor revealed.
 
-\begin{center}
-    \begin{tabular}{|c|c|c|c|c|}
-         \hline
-         $m_{l_1} ... m_{l_i}$ & $m_{h_1} ... m_{h_j}$ & $m_{p_1} ... m_{p_k}$ & $m_{d_1} ... m_{d_l}$ \\
-         \hline
-         Linked & Hidden & Partially Disclosed & Fully Disclosed\\
-         \hline 
-    \end{tabular}\\
-    Note: the total number of attributes $m_l$, $m_h$, $m_p$, and $m_d$ is $i + j + k + l = L$
-\end{center}
+
 \subsubsection{Presentation Notation}
-Let $I_l, I_h, I_p, I_d$ be the set of attribute indices $\{1, 2, \ldots,i\}$ in a given credential $\mathcal{C}$ that are linked, hidden, partially disclosed, and fully disclosed, respectively. Let $I_L$ be the set of indices for all attributes in $\mathcal{C}$
+Let $I_h$ be the set of hidden attribute indices such that $I_h \subseteq I_L$ and $I_r$ be the set of revealed attributes indices such that $I_r \subseteq I_L$, with $I_L = \{1, 2, \ldots,L\}$ where $L$ is the number of attributes in a given credential, $I_h \cap I_r = \O$ and $I_h \cup I_r = I_L$.
+
+Let $I_p$ be the set of partially disclosed attribute indices such that $I_p \subseteq I_h$, $I_l$ be the set of linked attribute indices such that $I_l \subseteq I_h$, and $I_f$ be the set of fully hidden attribute indices such that $I_f \subseteq I_h$, where $(I_p \cup I_l) \cap I_f = \O$ and $I_p \cup I_l \cup I_f = I_h$.
 
 \subsubsection{Verifier Setup}
 For each desired partial disclosure proof, the verifier must select the constraints for the R1CS circuit that will be used by the holder to assert proofs.
 
-For each inequality, the verifier selects the term $v_i$ such that the statement $m_{p_i} \neq v_i$ may be proven by the holder.
+For each inequality proof, the verifier selects the term $v_i$ such that the statement $m_{h_i} \neq v_i$ may be proven by the holder.
 
-For each range proof, the verifier selects terms $a_i$ and $b_i$ such that the statement $a_i \leq m_{p_i} \leq b_i$ may be proven by the holder.
+For each range proof, the verifier selects terms $a_i$ and $b_i$ such that the statement $a_i \leq m_{h_i} \leq b_i$ may be proven by the holder.
 
-For each set-membership proof, the verifier selects the terms in the set $\mathcal{S}$ or selects the Merkle tree $\mathcal{T}$.
+For each set-membership proof, the verifier selects the terms in the set $\mathcal{S}$ such that the statement $m_{h_i} \in \mathcal{S}$ or $m_{h_i} \notin \mathcal{S}$ may be proven by the holder.
 
 
 \subsubsection{Proof Description}
-For partially disclosed attribute values, the verifier creates a set of \emph{challenges}, one for each desired proof. A partial disclosure challenge consists of the terms and operations, the proving system, and the parameters needed to satisfy the challenge.
+For partial disclosure proofs, the verifier creates a set of \emph{challenges}, one for each desired proof. A partial disclosure challenge consists of the terms and operations, the proving system, and the parameters needed to satisfy the challenge.
 
-For linked attributes, the verifier creates another set of challenges. A linked attribute challenge consists of the attribute values that must be proven equivalent in order to satisfy the challenge. 
+For linked attribute proofs, the verifier creates a set of challenges, one for each desired proof. A linked attribute challenge consists of the attribute values that must be proven equivalent in order to satisfy the challenge.
 
 For revealed attributes, the challenge set consists of the attributes that must be revealed.
 
-The combined challenge sets comprise a proof description, which is sent to the holder.\newpage
+The combined challenge sets comprise a proof description, which is sent to the holder.
 
 \begin{lstlisting}[language=json]
 "challenge": {
@@ -374,61 +370,65 @@ The combined challenge sets comprise a proof description, which is sent to the h
 \end{lstlisting}
 \begin{center}
 \begin{scriptsize}
-    challenge for $20 \leq m_{p_i} \leq 50$ using bulletproofs on the BLS12-381 curve.
+    Example of a challenge for $20 \leq m_{h_i} \leq 50$ using bulletproofs on the BLS12-381 curve.
 \end{scriptsize}
 \end{center}
 
-
-Note: The verifier may elect to further refine the proof description by specifying the set of acceptable issuers from whom a holder must have credentials, or the set of credential types from which an attribute value must be taken, etc. Such limitations are not discussed here as they are considered outside the scope of this work.
+Note: The verifier may elect to further refine the proof description by specifying the set of acceptable issuers from whom a holder must have credentials, or the set of credential types from which an attribute value must be taken, etc. Such limitations are not discussed here as they are  outside the scope of this work.
 
 \subsubsection{Proof Generation}
 \textbf{Selective Disclosure}\\\\
 Holder
 \begin{itemize}
-    \item Establishes a connection with issuer and gets a 128-bit nonce\footnote{The presentation protocol relies on a nonce that the verifier trusts. The holder must not be the source of the nonce otherwise he could cheat. The nonce may be a random number generated by the verifier, or the latest Merkle root hash from the ledger.} $n_1$.
+    \item Establishes a connection with verifier and gets a 128-bit nonce\footnote{The presentation protocol relies on a nonce that the verifier trusts. The holder must not be the source of the nonce otherwise he could cheat. The nonce may be, e.g., a random number generated by the verifier or the latest Merkle root hash from the ledger.} $n_1$.
     \item Chooses the set of credentials $\{\mathcal{C}\}$ to use to satisfy the proof description.
     \item Initializes empty sets $\mathcal{R}, \mathcal{U}, \mathcal{X}, \mathcal{Y}, \mathcal{Z}$.
-    \item Generates random non-zero values $\{\widetilde{m_{l_i}} \mod p\}_{i \in I_l}$.
+    \item Generates random non-zero values $\{\widetilde{m_i} \mod p\}_{i \in I_l}$.
     \item For each $\mathcal{C}$
     \begin{itemize}
-        \item Extract $A, e, s, \{m_i\}_{i \in I_L}$
-        \item Retrieve issuer public key $\{w, h_0, \{h_i\}_{i \in I_L}\}$ associated with $\mathcal{C}$
-        \item Generate random non-zero values $\{r_1,r_2,\widetilde{e},\widetilde{r_2},\widetilde{r_3},\widetilde{s'}\} \mod p$.
-        \item Generate random non-zero values $\{z_i,\widetilde{z_i}\}_{i\in I_p} \mod p$.
-        \item Computes for 
+        \item Extracts $A, e, s, \{m_i\}_{i \in I_L}$
+        \item Retrieves issuer public key $\{w, h_0, \{h_i\}_{i \in I_L}\}$ associated with $\mathcal{C}$
+        \item Generates random non-zero values $\{z_i,\widetilde{z_i}\}_{i\in I_p} \mod p$.
+        \item Adds $\{z_i,\widetilde{z_i}\}_{i\in I_p}$ to set $\mathcal{U}$
+        \item For each $m_i \in \{m_i\}_{i \in I_p}$, computes
             \begin{itemize}
-                \item $\{Z_i \leftarrow h_1^{m_{p_i}}h_0^{z_i}\}_{i\in I_p}$ for inequalities $\geq, >,  \neq$; and set memberships
-                \item $\{Z_i \leftarrow h_1^{m_{p_i}}h_0^{-z_i}\}_{i\in I_p}$ for inequalities $<, \leq$
+                \item $Z_i \leftarrow h_1^{m_i}h_0^{z_i}$ if any partial disclosure proof is of type $\geq, >,  \neq$, or set membership
+                \item Adds $Z_i$ to set $\mathcal{Z}$
+                \item $\widetilde{Z_i} \leftarrow h_1^{m_i}h_0^{-z_i}$, if any partial disclosure proof is of type $<, \leq$
+                \item Adds $\widetilde{Z_i}$ to set $\mathcal{Z}$
             \end{itemize}
-        \item Add $\{Z_i\}$ to set $\mathcal{Z}$
-        \item Compute 
+        \item Generates random non-zero values $r_1,r_2,\widetilde{e},\widetilde{r_2},\widetilde{r_3},\widetilde{s'} \mod p$.
+        \item Adds $r_2, \widetilde{e},\widetilde{r_2},\widetilde{r_3},\widetilde{s'}$ to set $\mathcal{U}$
+        \item Computes
             \begin{itemize}
-                \item $B \leftarrow g_1  h_0^{s}\prod_{1\leq i\leq L} h_i^{m_i}$
+                \item $B \leftarrow g_1  h_0^{s}\prod_{i\in I_L} h_i^{m_i}$
                 \item $A'\leftarrow A^{r_1}$
                 \item $\overline{A}\leftarrow A'^{-e}B^{r_1}$
                 \item $d\leftarrow B^{r_1}h_0^{r_2}$
             \end{itemize}
-        \item Add $A', \overline{A}, d$ to set $\mathcal{R}$
-        \item Compute     
-            \begin{itemize}                \item $r_3\leftarrow r_1^{-1} \mod p$
+        \item Adds $A', \overline{A}, d$ to set $\mathcal{R}$
+        \item Computes
+            \begin{itemize}
+                \item $r_3\leftarrow r_1^{-1} \mod p$
                 \item $s'\leftarrow s+r_2r_3$
             \end{itemize}
-        \item Add $r_2, r_3, s' , \widetilde{e},\widetilde{r_2},\widetilde{r_3},\{z_i, \widetilde{z_i}\}_{i \in I_p}$ to set $\mathcal{U}$
-        \item Compute 
+        \item Adds $r_3, s'$ to set $\mathcal{U}$
+        \item Generates random non-zero values $\{\widetilde{m_i} \mod p\}_{i \in (I_h - I_l)}$.
+        \item Computes
         \begin{itemize}
                 \item $t_1\leftarrow A'^{\widetilde{e}}h_0^{\widetilde{r_2}}$
-                \item $t_2 \leftarrow  d^{-\widetilde{r_3}}h_0^{\widetilde{s'}}\prod_{i\in I_h}h_i^{\widetilde{m_{h_i}}}\prod_{i\in I_p}h_i^{\widetilde{m_{p_i}}}\prod_{i\in I_l}h_i^{\widetilde{m_{l_i}}}$
-                \item $\{t_i'\leftarrow h_0^{\widetilde{z_i}}h_1^{\widetilde{m_{p_i}}}\}_{i\in I_p}$.
+                \item $t_2 \leftarrow  d^{-\widetilde{r_3}}h_0^{\widetilde{s'}}\prod_{i\in I_h}h_i^{\widetilde{m_i}}$
+                \item $\{t_i'\leftarrow h_0^{\widetilde{z_i}}h_1^{\widetilde{m_i}}\}_{i\in I_p}$.
             \end{itemize}
-        \item Add $t_1, t_2, \{t_i'\}$ to set $\mathcal{X}$
+        \item Adds $t_1, t_2, \{t_i'\}$ to set $\mathcal{X}$
     \end{itemize}
-    \item Compute 
+    \item Computes
     \begin{itemize}
         \item $c \leftarrow H(\mathcal{R}||\mathcal{X}||n_1)$
         \item $\{\widehat{m_{l_i}} \leftarrow \widetilde{m_{l_i}} + c m_{l_i}\}_{i \in I_l}$
-        \item Add $\{\widehat{m_l}\}$ to set $\mathcal{Y}$
+        \item Adds $\{\widehat{m_l}\}$ to set $\mathcal{Y}$
     \end{itemize}
-    \item Using values in $\mathcal{U}$ for each $\mathcal{C}$ compute
+    \item Using values in $\mathcal{U}$, computes for each $\mathcal{C}$
     \begin{itemize}
         \item $\widehat{r_2} \leftarrow \widetilde{r_2} + c r_2$
         \item $\widehat{r_3} \leftarrow \widetilde{r_3} + c r_3$
@@ -438,11 +438,17 @@ Holder
         \item $\{\widehat{m_{p_i}} \leftarrow \widetilde{m_{p_i}} + c m_{p_i}\}_{i \in I_p}$
         \item $\{\widehat{z_i} \leftarrow \widetilde{z_i} + cz_i\}_{i \in I_p}$
         \end{itemize}
-    \item Add $\widehat{r_2},\widehat{r_3},\widehat{s'},\widehat{e},\{\widehat{m_h}\},\{\widehat{m_p}\},\{\widehat{z_i}\}$ to set $\mathcal{Y}$
+    \item Adds $\widehat{r_2},\widehat{r_3},\widehat{s'},\widehat{e},\{\widehat{m_h}\},\{\widehat{m_p}\},\{\widehat{z_i}\}$ to set $\mathcal{Y}$
 \end{itemize}
 The holder sends $\pi \leftarrow \{c, \mathcal{R}, \mathcal{Y}, \mathcal{Z}, \{m_{d_i}\}_{i \in I_d}\}$ to the verifier.\\\\
 \textbf{Predicate Proofs}\\\\
-For each predicate proof, the attributes $m_{p_i}$  from $\mathcal{C}$, random values $z_i$, and the predicate terms will be the inputs to the predicates. The verifier will  use the commitments from set $\mathcal{Z}$ to check the predicates. For example, the commitment $Z_i$ will exist in set $\mathcal{Z}$ for attribute $m_{p_i}$ from $\mathcal{C}$. The set $\mathcal{Z}$ is created from the selective disclosure step.\\\\
+For each predicate proof the inputs will be:
+\begin{itemize}
+    \item a partially disclosed attribute $m_{p_i} \in \{m_p\}$ from $\mathcal{C}$,
+    \item a random value $z_i$,
+    \item a set of challenge statements from the presentation definition.
+\end{itemize}
+The verifier will also use the commitments from set $\mathcal{Z}$ to check the predicates. For example, the commitment $Z_i$ will exist in set $\mathcal{Z}$ for attribute $m_{p_i}$ from $\mathcal{C}$. The set $\mathcal{Z}$ is created from the selective disclosure step. This proves the holder used the same attribute value for the predicate input as was signed in the credential.\\\\
 \textbf{Inequality predicates}\\\\
 Inequality predicates are created using Bulletproof gadgets $\Phi_p$ for proving and $\Phi_v$ for verification as described in \cite{BBBPWM18}. Predicates $\geq,  >, <, \leq, \neq$ are supported. The holder takes the attribute $m_{p_i}$ from credential $\mathcal{C}$, random value $z_i$ from the selective disclosure step, and the term $a_i$ provided by the verifier and computes the following:
 $$
@@ -453,7 +459,7 @@ m_{p_i}-a_i; & \mbox{if } \geq or \neq\\
 m_{p_i}-a_i-1; & \mbox{if } >
 \end{cases}
 $$
-and 
+and
 $$
 \delta \leftarrow \begin{cases}
 z_i; &\mbox{if } \geq, >, \neq\\
@@ -532,12 +538,12 @@ Agents are granted PROVE authorization from commitments to private values in a p
 \textbf{Identity owners}\\\\
 An identity owner creates a policy address $I$ on the ledger with at least one authorized agent. During credential issuance, the holder includes policy address $I$ as a blinded attribute.\\\\
 \textbf{Ledger}\\\\
-Ledger nodes generate a system bulletproof circuit gadget $\Omega$ that proves an agent is authorized to use credentials associated with policy address $I$ and random bases $g_1,g_2 \leftarrow \mathbb{G}_1$. $\Omega_p$ is used for proof generation and $\Omega_v$ for proof verification. 
+Ledger nodes generate a system bulletproof circuit gadget $\Omega$ that proves an agent is authorized to use credentials associated with policy address $I$ and random bases $g_1,g_2 \leftarrow \mathbb{G}_1$. $\Omega_p$ is used for proof generation and $\Omega_v$ for proof verification.
 \subsubsection{Agent Authorization}
 Agents will prove they are authorized by presenting a zero-knowledge proof of a private key. They do this in the following way
 \begin{enumerate}
     \item Agent has private key $s$.
-    \item Agent computes 
+    \item Agent computes
     \begin{itemize}
         \item $K \leftarrow H(s)$
         \item $\mathcal{I} \leftarrow H(K, I)$
