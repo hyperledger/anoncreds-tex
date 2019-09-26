@@ -39,7 +39,7 @@ The next step would be to support adding predicate in proof requests that lets a
 
 ### Anoncreds 2.0
 For Anoncreds 2.0, we should take a different approach. The current model of Anoncreds 1.0 assumes that the common attributes are common for all credentials and hence verifier assumes all sub-proofs have that common attribute. But there will be cases where a proof is created from more than 2 credentials and some attribute has to be proven equal in only 2 credentials. Then the approach taken by Anoncreds 1.0 does not work. Next, the new approach is described. 
-In Anoncreds 2.0, in the context of both `ProofBuilder` and `ProofVerifier`, each credential should be given a unique id. It can be counter, so first credential's id is 1, second credential id is 2, etc. Each attribute also has a unique id like <credential id>.<attribute name> so attribute name city of credential 3 has id "3.city". Both `ProofBuilder` and `ProofVerifier` support a new method called `add_equality_predicate` which takes a list of attribute ids which need to be proved equal.
+In Anoncreds 2.0, in the context of both `ProofBuilder` and `ProofVerifier`, each credential should be given a unique id. It can be counter, so first credential's id is 1, second credential id is 2, etc. Each attribute also has a unique id like \<credential id>.\<attribute name> so attribute name city of credential 3 has id "3.city". Both `ProofBuilder` and `ProofVerifier` support a new method called `add_equality_predicate` which takes a list of attribute ids which need to be proved equal.
 
 ```rust
 fn add_equality_predicate(&mut self, attribute_ids: &HashSet[&str];
