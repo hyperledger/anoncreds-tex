@@ -1,0 +1,12 @@
+trigger:
+- master
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+steps:
+
+- script: |
+    docker pull dxjoke/tectonic-docker
+    /bin/bash check.sh
+  displayName: 'TeX'
