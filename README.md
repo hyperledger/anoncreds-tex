@@ -10,4 +10,4 @@ Documents are broken down into the following folders:
 - **website** is the published content from running **bin** scripts 
 - [specs](specs/README.md) is used for papers and specifications that are written in Latex.
 
-
+![Ursa Docs CI](https://github.com/hyperledger/ursa-docs/workflows/Ursa%20Docs%20CI/badge.svg)
