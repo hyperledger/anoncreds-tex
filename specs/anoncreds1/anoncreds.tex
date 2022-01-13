@@ -61,9 +61,9 @@ Various types of anonymous credentials can be supported. In this section, the co
 
 The simplest credential lifecycle with one credential, single issuer, holder, and verifier is as follows:
 \begin{enumerate}
-    \item Issuer determines a credential schema $\mathcal{S} $: the type of cryptographic signatures used to sign the credentials, the number $l$ of attributes in a credential, the indices $A_h\subset \{1,2,\ldots,l\}$ of hidden attributes, the public key $P_k$, the non-revocation credential attribute number $l_r$ and non-revocation public key $P_r$ (Section~\ref{sec:iss-setup}). Then he publishes it on the ledger and announces the attribute semantics.
+    \item Issuer determines a credential schema $\mathcal{S} $: the type of cryptographic signatures used to sign the credentials, the number $l$ of attributes in a credential, the indices $A_h\subset \{1,2,\ldots,l\}$ of hidden attributes, the public key $P_k$, the non-revocation credential attribute number $l_r$ and non-revocation public key $P_R$ (Section~\ref{sec:iss-setup}). Then he publishes it on the ledger and announces the attribute semantics.
     \item Holder retrieves the credential schema from the ledger and sets the hidden attributes.
-    \item Holder requests a credential from issuer. He sends hidden attributes in a blinded form to issuer and agrees on the values of known attributes $A_k=\{1,2,
+    \item Holder requests a credential from issuer. He sends hidden attributes in a blinded form to issuer and agrees on the values of known attributes $A_r=\{1,2,
 \ldots,l\}\setminus A_h$.
     \item Issuer returns a credential pair $(C_p, C_{NR})$ to holder. The first credential contains the requested $l$ attributes. The second credential asserts the non-revocation status of the first one. Issuer publishes the non-revoked status of the credential on the ledger.
     \item Holder approaches verifier. Verifier sends the Proof Request $\mathcal{E}$
@@ -141,7 +141,7 @@ Here $H_I$ is the issuer-defined hash function, by default SHA-256.
 \subsection{Non-revocation Credential Cryptographic Setup}
 In Sovrin, issuers use CKS accumulator and signatures~\cite{CamenischKS09} to track revocation status of primary credentials, although other signature types will be supported too. Each primary credential is given an index from 1 to $L$.
 
-The CKS  accumulator is used to track revoked primary credentials, or equivalently, their indices. The accumulator contains up to $L$ indices of credentials. If issuer has to issue more credentials, another accumulator is prepared, and so on. Each accumulator $A$ has an identifier $I_A$.
+The CKS  accumulator is used to track revoked primary credentials, or equivalently, their indices. The accumulator contains up to $L$ indices of credentials. If issuer has to issue more credentials, another accumulator is prepared, and so on. Each accumulator $acc_V$ has an identifier $I_{acc}$.
 
 Issuer chooses
 \begin{itemize}
@@ -168,9 +168,9 @@ Issuer:
 \end{legal}
 
 The revocation public key is
-$P_r = (h,h_0,h_1,h_2,\widetilde{h},\widehat{h},u,pk,y)$ and the secret key is $(x,sk)$.
+$P_R = (h,h_0,h_1,h_2,\widetilde{h},\widehat{h},u,pk,y)$ and the secret key is $(x,sk)$.
 \subsubsection{New Accumulator Setup}
-To create a new accumulator $A$, issuer:
+To create a new accumulator $acc_V$, issuer:
 \begin{legal}
 \item Generates random $\gamma\pmod{q}$.
 \item Computes
@@ -181,11 +181,11 @@ $g_i = g^{\gamma^i}$.
 $g_i' = g'^{\gamma^i}$. 
     \item $z = (e(g,g'))^{\gamma^{L+1}}$.
 \end{legal}
-\item Set $V \leftarrow\emptyset$, $\mathrm{acc}\leftarrow 1$.
+\item Set $V \leftarrow\emptyset$, $\mathrm{acc_V}\leftarrow 1$.
 \end{legal}
 The accumulator public key is $P_a = (z)$ and secret key is $(\gamma)$.
 
-Issuer publishes $(P_a,V)$ on the ledger. The accumulator identifier is $ID_a = z$.
+Issuer publishes $(P_a,V)$ on the ledger. The accumulator identifier is $I_{acc} = z$.
 
 \section{Issuance of Credentials}
 
@@ -235,16 +235,16 @@ n_0);&
 \end{enumerate}
 Holder prepares for non-revocation credential:
 \begin{enumerate}
-    \item Load issuer's revocation key $P_R$ and generate random $s'_R\bmod{q}$.
-     \item Compute $U_R \leftarrow h_2^{s'_R}$
+    \item Load issuer's revocation key $P_R$ and generate random $s'\bmod{q}$.
+     \item Compute $U_R \leftarrow h_2^{s'}$
     taking $h_2$ from $P_R$.
     \item Send $U_R$ to the issuer.
     \item For proving correctness of $U_R$
     \begin{itemize}
-    \item generate random $\widetilde{s'_R}\bmod{q}$ and compute $\widetilde{U_R} \leftarrow {h_2}^{\widetilde{s'_R}}$
+    \item generate random $\widetilde{s'}\bmod{q}$ and compute $\widetilde{U_R} \leftarrow {h_2}^{\widetilde{s'}}$
     \item Compute above challenge $c$ as $c\leftarrow H(U||\widetilde{U}||U_R||\widetilde{U_R}||n_0)$ instead of $c\leftarrow H(U||\widetilde{U}||n_0)$
-    \item Compute $\widehat{s'_R}\leftarrow \widetilde{s'_R} + c s'_R$
-    \item Send $c$ and $\widehat{s'_R}$ to issuer
+    \item Compute $\widehat{s'}\leftarrow \widetilde{s'} + c s'$
+    \item Send $c$ and $\widehat{s'}$ to issuer
     \end{itemize}
 \end{enumerate}
 
@@ -275,7 +275,7 @@ $$.
 \overline{S} = A_{R_i}||U_i,\quad H_{\overline{S}} = H(\overline{S})
 $$ 
 and sets $m_2 = H_{\overline{S}}$.
-    \item Create 256-bit integer attributes $\{m_i\}_{i \in A_k}$ for the holder.
+    \item Create 256-bit integer attributes $\{m_i\}_{i \in A_r}$ for the holder.
     \item Generate 80-bit nonce $n_0$ and send to the holder.
 \end{enumerate}
 Holder:
@@ -298,14 +298,14 @@ n_0)$
 \item Verify that $\widehat{v'}$ is a 673-bit number, $\{\widehat{m_i}, \widehat{r_i}\}_{i \in \mathcal{A}_c}$ are 594-bit numbers.
 \item If a revocable credential is requested
 \begin{itemize}
-\item Compute $\widehat{U_R} = {U_R}^{-c}{h_2}^{\widehat{s'_R}}$
+\item Compute $\widehat{U_R} = {U_R}^{-c}{h_2}^{\widehat{s'}}$
 \item Verify that $c$ equals $H(U||\widehat{U}||U_R||\widehat{U_R}||n_0)$ instead of $H(U||\widehat{U}||n_0)$
 \end{itemize}
 \end{enumerate}
 Issuer prepare the credential:
 \begin{enumerate}
-\item Assigns index $i<L$ to holder, which is one of not yet taken indices for the issuer's current accumulator $A$. Compute $m_2\leftarrow H(i||\mathcal{H})$ and store information about holder and the value $i$ in a local database.
-\item Set, possibly in agreement with holder, the values of disclosed attributes, i.e. with indices from $A_k$.
+\item Assigns index $i<L$ to holder, which is one of not yet taken indices for the issuer's current accumulator $acc_V$. Compute $m_2\leftarrow H(i||\mathcal{H})$ and store information about holder and the value $i$ in a local database.
+\item Set, possibly in agreement with holder, the values of disclosed attributes, i.e. with indices from $A_r$.
 \item Generate random 2724-bit number $v''$ with most significant bit equal 1 and random prime  $e$ such that
 \begin{equation}\label{eq:e}
 2^{596}\leq e \leq 2^{596}+ 2^{119}.
@@ -322,7 +322,7 @@ A& \leftarrow Q^{e^{-1}\pmod{p'q'}}\pmod{n};
 c'&\leftarrow H(Q||A||\widehat{A}||n_1);\\
 s_e&\leftarrow r - c'e^{-1}\pmod{p'q'};
 \end{align}
-\item Send the primary pre-credential  $(\{m_i\}_{i\in A_k},A,e,v'',s_e,c')$ to the holder.
+\item Send the primary pre-credential  $(\{m_i\}_{i\in A_r},A,e,v'',s_e,c')$ to the holder.
 \end{enumerate}
 
 \subsection{Non-revocation Credential Issuance}
@@ -333,24 +333,24 @@ Issuer:
     \item Generate random numbers $s'',c\bmod{q}$.
     \item Take $m_2$ from the primary 
     credential he is preparing for holder.
-    \item Take $A$ as the accumulator value for which index $i$ was taken. Retrieve current set of non-revoked indices $V$.
+    \item Take $acc_V$ as the accumulator value for which index $i$ was taken. Retrieve current set of non-revoked indices $V$.
     \item Compute:
 \begin{align}
 \sigma &\leftarrow \left( h_0 h_1^{m_2}\cdot U_R\cdot  g_i\cdot  h_2^{s''}\right)^{\frac{1}{x+c}};&
 w &\leftarrow \prod_{j\in V}g_{L+1-j+i}';\\
 \sigma_i &\leftarrow g'^{1/(sk+\gamma^i)};&
 u_i &\leftarrow u^{\gamma^i};\\
-A&\leftarrow A\cdot g'_{L+1-i};&
+acc_V&\leftarrow acc_V\cdot g'_{L+1-i};&
 V&\leftarrow V\cup\{i\};\\
 \mathrm{wit}_i&\leftarrow\{\sigma_i,u_i,g_i,w,V\}.
 \end{align}
-\item Send the non-revocation pre-credential  $(I_A,\sigma,c,s'',\mathrm{wit}_i,g_i,g_i',i)$ to holder.
-\item  Publish updated $V, A$ on the ledger.
+\item Send the non-revocation pre-credential  $(I_{acc},\sigma,c,s'',\mathrm{wit}_i,g_i,g_i',i)$ to holder.
+\item  Publish updated $V, acc_V$ on the ledger.
 \end{enumerate}
 
 
 \subsection{Storing Credentials}
-Holder works with the primary pre-credential :
+Let $C_s$ be the index set of all attributes. Holder works with the primary pre-credential:
 \begin{enumerate}
 \item Compute $v \leftarrow v'+v''$.
 \item Verify $e$ is prime and satisfies Eq.~\eqref{eq:e}.
@@ -367,7 +367,7 @@ Q\leftarrow \frac{Z}{S^v\prod_{i \in C_s}R_i^{m_i}}\pmod{n};
 \item Verify $c'=H(Q||A||\widehat{A}||n_2).$
 \item Store \emph{primary credential} $C_p=(\{m_i\}_{i \in C_s},A,e,v)$.
 \end{enumerate}
-Holder takes the non-revocation pre-credential $(I_A,\sigma,c,s'',\mathrm{wit}_i,g_i,g_i',i)$ computes $s_R \leftarrow s'+s''$ and stores the non-revocation credential $C_{NR}\leftarrow(I_A,\sigma,c,s,\mathrm{wit}_i,g_i,g_i',i)$.
+Holder takes the non-revocation pre-credential $(I_{acc},\sigma,c,s'',\mathrm{wit}_i,g_i,g_i',i)$ computes $s \leftarrow s'+s''$ and stores the non-revocation credential $C_{NR}\leftarrow(I_{acc},\sigma,c,s,\mathrm{wit}_i,g_i,g_i',i)$.
 \subsection{Non revocation proof of correctness} Holder computes
 \begin{align}
 \frac{e(g_i,acc_V)}{e(g,w)} &\overset{\text{?}}{=} z;\\
@@ -377,11 +377,11 @@ e(\sigma,y\cdot \widehat{h}^c)& \overset{\text{?}}{=} e(h_0 \cdot h_1^{m_2}h_2^{
     
 
 \section{Revocation}
-Issuer identifies a credential to be revoked in the database and retrieves its index $i$, the  accumulator value $A$, and valid index set $V$. Then he proceeds:
+Issuer identifies a credential to be revoked in the database and retrieves its index $i$, the  accumulator value $acc_V$, and valid index set $V$. Then he proceeds:
 \begin{enumerate}
 \item Set $V\leftarrow V\setminus\{i\}$;
-\item Compute $A \leftarrow A/g'_{L+1-i}$.
-\item Publish $\{V,A\}$.
+\item Compute $acc_V \leftarrow acc_V/g'_{L+1-i}$.
+\item Publish $\{V,acc_V\}$.
 \end{enumerate}
     
 \section{Presentation}
@@ -391,9 +391,9 @@ Issuer identifies a credential to be revoked in the database and retrieves its i
 Verifier sends a proof request, where it specifies the ordered set of $d$ credential schemas
 $\{\mathcal{S}_1,\mathcal{S}_2,\ldots,\mathcal{S}_d\}$, so that the holder should provide a set of $d$ credential pairs $(C_p,C_{NR})$ that correspond to these schemas.
 
-Let credentials in these schemas contain $X$ attributes in total. Suppose that the request makes to open $x_1$ attributes, makes to prove $x_2$ equalities $m_i=m_j$ (from possibly distinct schemas) and makes to prove $x_3$ predicates of form  $m_i >\leq \geq<z$. Then effectively $X-x_1$ attributes are unknown (denote them $A_h$), which form $x_4=(X-x_1-x_2)$ equivalence classes. Let $\phi$ map $A_h$ to $\{1,2,\ldots,x_4\}$ according to this equivalence.  Let $A_v$ denote the set of indices of $x_1$ attributes that are disclosed.
+Let credentials in these schemas contain $X$ attributes in total. Suppose that the request makes to open $x_1$ attributes, makes to prove $x_2$ equalities $m_i=m_j$ (from possibly distinct schemas) and makes to prove $x_3$ predicates of form  $m_i >\leq \geq<z$. Then effectively $X-x_1$ attributes are unknown (denote them $A_h$), which form $x_4=(X-x_1-x_2)$ equivalence classes. Let $\phi$ map $A_h$ to $\{1,2,\ldots,x_4\}$ according to this equivalence.  Let $A_r$ denote the set of indices of $x_1$ attributes that are disclosed.
 
-The proof request also specifies $A_h,\phi,A_v$ and the set $\mathcal{D}$ of predicates. Along with a proof request, Verifier also generates and sends 80-bit nonce $n_1$.
+The proof request also specifies $A_h,\phi,A_r$ and the set $\mathcal{D}$ of predicates. Along with a proof request, Verifier also generates and sends 80-bit nonce $n_1$.
 
 \subsection{Proof Preparation}
 Holder prepares all credential pairs $(C_p,C_{NR})$ to submit:
@@ -418,9 +418,9 @@ Verifier:
 \textbf{Non-revocation proof}
 Holder:
 \begin{enumerate}
-\item Load issuer's public revocation key $p = (h,h_1,h_2,\widetilde{h},\widehat{h},u,pk,y)$.
-\item Load the non-revocation credential $C_{NR}\leftarrow(I_A,\sigma,c,s,\mathrm{wit}_i,g_i,g_i',i)$;
-\item Obtain recent $V,\mathrm{acc}$ (from Verifier, Sovrin link, or elsewhere).
+\item Load issuer's public revocation key $P_R = (h,h_1,h_2,\widetilde{h},\widehat{h},u,pk,y)$.
+\item Load the non-revocation credential $C_{NR}\leftarrow(I_{acc},\sigma,c,s,\mathrm{wit}_i,g_i,g_i',i)$;
+\item Obtain recent $V,\mathrm{acc_V}$ (from Verifier, Sovrin link, or elsewhere).
 \item Update $C_{NR}$:
 \begin{align*}
 w&\leftarrow w\cdot \frac{\prod_{j\in V\setminus V_{old}}g'_{L+1-j+i}}{\prod_{j\in V_{old}\setminus V}g'_{L+1-j+i}};\\
@@ -464,7 +464,7 @@ e(\widetilde{h},\widehat{h})^{-\widetilde{m}}\cdot
 e(h_1,\widehat{h})^{-\widetilde{m_2}}\cdot e(h_2,\widehat{h})^{-\widetilde{s}}\\
 \end{equation}
 \begin{align}
-\overline{T_4}&\leftarrow e(\widetilde{h},\mathrm{acc})^{\widetilde{r}}\cdot
+\overline{T_4}&\leftarrow e(\widetilde{h},\mathrm{acc_V})^{\widetilde{r}}\cdot
 e(1/g,\widehat{h})^{\widetilde{r'}}&
 \overline{T_5}&\leftarrow g^{\widetilde{r}}\widetilde{h}^{\widetilde{o'}}\\
 \overline{T_6}&\leftarrow D^{\widetilde{r''}}g^{-\widetilde{m'}}
@@ -480,7 +480,7 @@ and add these values to $\mathcal{T}$.
 \textbf{Validity proof}\\
 \\Holder:
 \begin{legal}
-\item Generate a random 592-bit number $\widetilde{m_j}$ for each $j \in \mathcal{A}_{\overline{r}}$.
+\item Generate a random 592-bit number $\widetilde{m_j}$ for each $j \in \mathcal{A}_h$.
 \item For each credential $C_p = (\{m_j\},A,e,v)$ and issuer's
 public key $pk_I$:
 \begin{legal}
@@ -496,7 +496,7 @@ and add to $\mathcal{C}$.
 \item Generate random 3748-bit number $\widetilde{v}$.
 \item Compute 
 \begin{align}
-T \leftarrow (A')^{\widetilde{e}}\left(\prod_{j\in \mathcal{A}_{\overline{r}}} R_j^{\widetilde{m_j}}\right)(S^{\widetilde{v}})\pmod{n}
+T \leftarrow (A')^{\widetilde{e}}\left(\prod_{j\in \mathcal{A}_h} R_j^{\widetilde{m_j}}\right)(S^{\widetilde{v}})\pmod{n}
 \end{align}
 and add to $\mathcal{T}$.
 \end{legal}
@@ -575,9 +575,9 @@ and add them to $\mathcal{X}$.
 \begin{align}
 \widehat{e}& \leftarrow \widetilde{e}+c_H e';\\
 \widehat{v}& \leftarrow \widetilde{v}+c_H v';\\
-\{\widehat{m}_j& \leftarrow \widetilde{m_j} + c_H m_j\}_{j \in \mathcal{A}_{\overline{r}}};
+\{\widehat{m}_j& \leftarrow \widetilde{m_j} + c_H m_j\}_{j \in \mathcal{A}_h};
 \end{align}
-The values $Pr_C=(\widehat{e},\widehat{v},\{\widehat{m_j}\}_{j \in \mathcal{A}_{\overline{r}}},A')$ are the \emph{sub-proof}
+The values $Pr_C=(\widehat{e},\widehat{v},\{\widehat{m_j}\}_{j \in \mathcal{A}_h},A')$ are the \emph{sub-proof}
 for credential $C_p$.
 \item For each predicate $p$ compute:
 \begin{align}
@@ -609,7 +609,7 @@ e(\widetilde{h},\widehat{h})^{-\widehat{m}}\cdot
 e(h_1,\widehat{h})^{-\widehat{m_2}}\cdot e(h_2,\widehat{h})^{-\widehat{s}}\\
 \end{equation}
 \begin{align}
-\widehat{T_4}&\leftarrow\left(\frac{e(\mathcal{G},\mathrm{acc})}{e(g,\mathcal{W})z}\right)^{c_H} \cdot e(\widetilde{h},\mathrm{acc})^{\widehat{r}}\cdot
+\widehat{T_4}&\leftarrow\left(\frac{e(\mathcal{G},\mathrm{acc_V})}{e(g,\mathcal{W})z}\right)^{c_H} \cdot e(\widetilde{h},\mathrm{acc_V})^{\widehat{r}}\cdot
 e(1/g,\widehat{h})^{\widehat{r'}}
 &
 \widehat{T_5}&\leftarrow D^{c_H}\cdot g^{\widehat{r}}\widetilde{h}^{\widehat{o'}}\\
@@ -640,7 +640,7 @@ $\{m_j\}_{j \in \mathcal{A}_r}$. He initiates $\widehat{\mathcal{T}}$ as empty s
     (A')^{2^{596}}
     }\right)^{-c}
     (A')^{\widehat{e}}
-    \left(\prod_{j\in (\mathcal{A}_{\widetilde{r}})}{R_j}^{\widehat{m_j}}\right)
+    \left(\prod_{j\in (\mathcal{A}_h)}{R_j}^{\widehat{m_j}}\right)
     (S^{\widehat{v}})\pmod{n}.
 \end{equation}
 Add $\widehat{T}$ to $\widehat{\mathcal{T}}$.
@@ -675,7 +675,7 @@ and add these values to  $\widehat{\mathcal{T}}$ in the order $\widehat{T_1},\wi
 $$
 \widehat{c_H}\leftarrow H(\widehat{\mathcal{T}},\mathcal{C},n_1).
 $$
-\item If $c=\widehat{c}$ output VERIFIED else FAIL.
+\item If $c_H=\widehat{c_H}$ output VERIFIED else FAIL.
 \end{enumerate}
 
  
