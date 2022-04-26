@@ -123,7 +123,28 @@ Issuer computes
     Z \leftarrow S^{x_Z}\pmod{n};&\quad \{R_i \leftarrow S^{x_{R_i}}\pmod{n}\}_{1\leq i \leq l};
 \end{align}
 The issuer's public key is $P_k = (n, S,Z,\{R_i\}_{1 \leq i\leq l})$ and the private key is $s_k = (p, q)$.\\
-\subsection{Optional: Setup Correctness Proof}\label{sec:setup-proof}
+\subsection{Setup Correctness Proof}\label{sec:setup-proof}
+\subsubsection{Proof: $n$ is a product of two safe primes}
+\begin{enumerate}
+    \item Let $2^\ell$ be an upper-bound on the length of the largest factor of the modulus
+    \item Let $\epsilon > 1$ be a security parameter
+    \item A group $\mathbb{G}$ of prime order $\mathbb{Q} > 2^{2\epsilon\ell+5}$
+    \item Choose two generators $g, h$ such that  $\log_gh$ is not known and computing discrete logarithms is infeasible
+    \item Compute $c_n := g^nh^{r_n}$ where $r_n \in_R \mathbb{Z}_Q$
+    \item Compute $c_p := g^ph^{r_p}$, $c_{\tilde{p}}:= g^{(p-1)/2}h^{r_{\tilde{p}}}$, $c_q := g^qh^{r_q}$, $c_{\tilde{q}}:= g^{(q-1)/2}h^{r_{\tilde{q}}}$ where $r_p,r_{\tilde{p}},r_q,r_{\tilde{q}}, \in_R \mathbb{Z}_Q$
+    \item Compute
+    \begin{align}
+        S_{51} := PK\{(\alpha,\beta,\gamma,\delta,\rho,\nu,\xi,\chi,\varepsilon,\zeta,\eta):\\
+        c_{\tilde{p}} = g^{\alpha}h^{\beta} \; \land \; (-2^{\ddot{\ell}} < \alpha < 2^{\ell}) \; \land \\
+        c_{\tilde{q}} = g^{\gamma}h^{\delta} \; \land \; (-2^{\ddot{\ell}} < \alpha < 2^{\ell}) \; \land \\
+        c_p = g^{\rho}h^{\nu} \; \land \; c_q = g^{\xi}h^{\chi} \; \land \\
+        c_p/(c_{\tilde{p}}^2g) = h^{\varepsilon} \; \land \; c_q/(c_{\tilde{q}}^2g) = h^{\zeta} \; \land \; c_n/(c_p c_q) = h^{\eta} \land \\
+        \alpha \in \mathtt{psuedoprime(t)} \; \land \; \gamma \in \mathtt{psuedoprime(t)} \; \land \\
+        \rho \in \mathtt{psuedoprime(t)} \; \land \; \xi \in \mathtt{psuedoprime(t)} \;
+        \}
+    \end{align}
+\end{enumerate}
+\subsubsection{Continuing the correctness proof}
 \begin{enumerate}
 \item Issuer generates random $\widetilde{x_Z}, \widetilde{x_{R_1}},\ldots,\widetilde{x_{R_l}}\in [2; p'q'-1]$;
 \item Computes 
@@ -681,6 +702,11 @@ $$
  
  \ifdef{\fullpaper}{
  \section{Changelog}
+ \subsection{25 April 2022 (version 0.6)}
+ \begin{itemize}
+     \item Proof that n is a product of two safe primes in Section 4.3.1
+     \item Removed optional word from Issuer signature correctness proof
+ \end{itemize}
  \subsection{20 Jun 2019 (version 0.5)}
  \begin{itemize}
  \item Holder's proof of correctness for revocation secret
