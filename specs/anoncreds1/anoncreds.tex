@@ -270,10 +270,22 @@ Holder prepares for non-revocation credential:
 \end{enumerate}
 
 
-\subsubsection{Optional: Issuer Proof of Setup Correctness}
+\subsubsection{Issuer Proof of Setup Correctness}
 
 To verify the proof $\mathcal{P}_i$ of correctness, holder
 computes
+\begin{align}
+S_{51} := PK\{(\alpha,\beta,\gamma,\delta,\rho,\nu,\xi,\chi,\varepsilon,\zeta,\eta):\\
+c_{\tilde{p}} = g^{\alpha}h^{\beta} \; \land \; (-2^{\ddot{\ell}} < \alpha < 2^{\ell}) \; \land \\
+c_{\tilde{q}} = g^{\gamma}h^{\delta} \; \land \; (-2^{\ddot{\ell}} < \alpha < 2^{\ell}) \; \land \\
+c_p = g^{\rho}h^{\nu} \; \land \; c_q = g^{\xi}h^{\chi} \; \land \\
+c_p/(c_{\tilde{p}}^2g) = h^{\varepsilon} \; \land \; c_q/(c_{\tilde{q}}^2g) = h^{\zeta} \; \land \; c_n/(c_p c_q) = h^{\eta} \land \\
+\alpha \in \mathtt{psuedoprime(t)} \; \land \; \gamma \in \mathtt{psuedoprime(t)} \; \land \\
+\rho \in \mathtt{psuedoprime(t)} \; \land \; \xi \in \mathtt{psuedoprime(t)} \;
+\}
+\end{align}
+where t
+and 
 $$
 \widehat{Z} \leftarrow Z^{-c} S^{\widehat{x_Z}}\pmod{n} ;\quad  \{\widehat{R_i} 
 \leftarrow R_i^{-c} S^{\widehat{x_{R_i}}}\pmod{n}\}_{1\leq i \leq l};
