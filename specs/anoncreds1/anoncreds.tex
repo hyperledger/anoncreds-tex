@@ -144,6 +144,17 @@ The issuer's public key is $P_k = (n, S,Z,\{R_i\}_{1 \leq i\leq l})$ and the pri
         \}
     \end{align}
 \end{enumerate}
+Where $\mathtt{psuedoprime(t)}$ is equal to $\mathtt{t}$ to the number of bases chosen for Lehmann's primality test.
+
+\subsubsection{Lehmann's primality test}
+
+Any integer odd  integer $n > 1$ is prime if and only if
+\begin{enumerate}
+    \item choose k random bases $a_1,...,a_k \in \mathbb{Z}^{*}_n$
+    \item check if $a_i^{(n-1)/2} \equiv \pm 1 \pmod{n}$ holds for all $i$
+    \item check of $a_i^{(n-1)/2} \equiv -1 \pmod{n}$ for at least one i
+\end{enumerate}
+
 \subsubsection{Continuing the correctness proof}
 \begin{enumerate}
 \item Issuer generates random $\widetilde{x_Z}, \widetilde{x_{R_1}},\ldots,\widetilde{x_{R_l}}\in [2; p'q'-1]$;
