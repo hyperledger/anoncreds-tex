@@ -61,7 +61,7 @@ Various types of anonymous credentials can be supported. In this section, the co
 
 The simplest credential lifecycle with one credential, single issuer, holder, and verifier is as follows:
 \begin{enumerate}
-    \item Issuer determines a credential schema $\mathcal{S} $: the type of cryptographic signatures used to sign the credentials, the number $l$ of attributes in a credential, the indices $A_h\subset \{1,2,\ldots,l\}$ of hidden attributes, the public key $P_k$, the non-revocation credential attribute number $l_r$ and non-revocation public key $P_r$ (Section~\ref{sec:iss-setup}). Then he publishes it on the ledger and announces the attribute semantics.
+    \item Issuer determines a credential schema $\mathcal{S} $: the type of cryptographic signatures used to sign the credentials, the number $l$ of attributes in a credential, the indices $A_h\subset \{1,2,\ldots,l\}$ of hidden attributes, the public key $P_k$, the cation credential attribute number $l_r$ and non-revocation public key $P_r$ (Section~\ref{sec:iss-setup}). Then he publishes it on the ledger and announces the attribute semantics.
     \item Holder retrieves the credential schema from the ledger and sets the hidden attributes.
     \item Holder requests a credential from issuer. He sends hidden attributes in a blinded form to issuer and agrees on the values of known attributes $A_k=\{1,2,
 \ldots,l\}\setminus A_h$.
@@ -110,7 +110,7 @@ Issuer defines the non-revocation credential  with $2$ attributes $m_1,m_2$. In 
 
 %Hidden attributes can be included in credentials as blinded values signed by the issuer, or not included and sent to issuers as cryptographic commitments--committed attributes. Primary credential schema $C_s$ attributes are divided into three sets: 
 \subsection{Primary Credential Cryptographic Setup}\label{sec:setup-key1}
-In Sovrin, issuers use CL-signatures~\cite{ACCUMULATORS} for primary credentials, although other signature types will be supported too.
+In Sovrin, issuers use CL-signatures~\cite{CamenischL02, Camenisch2004} for primary credentials, although other signature types will be supported too.
 
 For the CL-signatures issuer generates:
 \begin{enumerate}
@@ -179,7 +179,7 @@ Issuer chooses
 \begin{itemize}
     \item Groups $\mathbb{G}_1,\mathbb{G}_2,\mathbb{G}_T$ of
     prime order $q$;
-    \item Type-3 pairing operation $e:\, \mathbb{G}_1\times\mathbb{G}_2\rightarrow\mathbb{G}_T$.
+    \item Type-3 pairing operation $e:\, \mathbb{G}_1\times\mathbb{G}_2\rightarrow\mathbb{G}_T$. (\cite{GPS08})
     \item Generators: $g$ for $\mathbb{G}_1$, $g'$ for
     $\mathbb{G}_2$.
 \end{itemize}
@@ -721,10 +721,13 @@ $$
 $$
 \item If $c=\widehat{c}$ output VERIFIED else FAIL.
 \end{enumerate}
+\printbibliography
 
- 
  \ifdef{\fullpaper}{
  \section{Changelog}
+ \subsection{7 Oct 2022 (version 0.7)}
+	fixing missing references/citations. LaTeX Biber required 
+	(added a bib-file and a reference section) 	
  \subsection{25 April 2022 (version 0.6)}
  \begin{itemize}
      \item Proof that n is a product of two safe primes in Section 4.3.1
@@ -756,3 +759,4 @@ $$
  \item  Verification of correctness of signature: steps 3.1.0, 3.1.1, 3.1.2, 3.2.0, 3.2.1.
  \end{itemize}
  }{}
+
