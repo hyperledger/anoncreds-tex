@@ -61,7 +61,7 @@ Various types of anonymous credentials can be supported. In this section, the co
 
 The simplest credential lifecycle with one credential, single issuer, holder, and verifier is as follows:
 \begin{enumerate}
-    \item Issuer determines a credential schema $\mathcal{S} $: the type of cryptographic signatures used to sign the credentials, the number $l$ of attributes in a credential, the indices $A_h\subset \{1,2,\ldots,l\}$ of hidden attributes, the public key $P_k$, the cation credential attribute number $l_r$ and non-revocation public key $P_r$ (Section~\ref{sec:iss-setup}). Then he publishes it on the ledger and announces the attribute semantics.
+    \item Issuer determines a credential schema $\mathcal{S} $: the type of cryptographic signatures used to sign the credentials, the number $l$ of attributes in a credential, the indices $A_h\subset \{1,2,\ldots,l\}$ of hidden attributes, the public key $P_k$, the non-revocation credential attribute number $l_r$ and non-revocation public key $P_r$ (Section~\ref{sec:iss-setup}). Then he publishes it on the ledger and announces the attribute semantics.
     \item Holder retrieves the credential schema from the ledger and sets the hidden attributes.
     \item Holder requests a credential from issuer. He sends hidden attributes in a blinded form to issuer and agrees on the values of known attributes $A_k=\{1,2,
 \ldots,l\}\setminus A_h$.
