@@ -1,5 +1,7 @@
 # Documentation for Ursa
 
+[Hyperledger Ursa was moved to EOL at the TOC meeting on 27 APR 2023.](https://toc.hyperledger.org/meeting-minutes/2023/2023-04-27-TOC-meeting-record.html)
+
 This repository is for documentation, specifications, and anything else for 
 [ursa](https://github.com/hyperledger/ursa).
 
