@@ -3,8 +3,7 @@
 #
 
 repository:
-  name: ursa-docs
-  description: Hyperledger Ursa has moved to end-of-life status.
-  homepage: https://wiki.hyperledger.org/display/ursa
+  name: anoncreds-tex
+  description: anoncreds
   default_branch: main
-  archived: true
+  archived: false
