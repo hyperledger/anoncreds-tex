@@ -603,11 +603,11 @@ Holder:
 \widehat{o} &\leftarrow \widetilde{o} - c_H\cdot o\bmod{q}\\
 \widehat{c} &\leftarrow \widetilde{c} - c_H\cdot c\bmod{q} &
 \widehat{o'} &\leftarrow \widetilde{o'} - c_H\cdot o'\bmod{q}\\
-\widehat{m} &\leftarrow \widetilde{m} - c_H m\bmod{q} &
+\widehat{m} &\leftarrow \widetilde{m} + c_H m\bmod{q} &
 \widehat{m'} &\leftarrow \widetilde{m'} - c_H m'\bmod{q}\\
 \widehat{t} &\leftarrow \widetilde{t} - c_H t\bmod{q} &
 \widehat{t'} &\leftarrow \widetilde{t'} - c_H t'\bmod{q}\\
-\widehat{m_2} &\leftarrow \widetilde{m_2} - c_H m_2\bmod{q} &
+\widehat{m_2} &\leftarrow \widetilde{m_2} + c_H m_2\bmod{q} &
 \widehat{s} &\leftarrow \widetilde{s} - c_H s\bmod{q}\\
 \widehat{r} &\leftarrow \widetilde{r} - c_H r\bmod{q} &
 \widehat{r'} &\leftarrow \widetilde{r'} - c_H r'\bmod{q}\\
@@ -754,5 +754,9 @@ $$
  \item Issuer sends all $m_i$ in step 2.4.
  \item Proof of correctness for issuer's signature: steps 2.2.1, 2.2.2, 2.2.3.
  \item  Verification of correctness of signature: steps 3.1.0, 3.1.1, 3.1.2, 3.2.0, 3.2.1.
+ \end{itemize}
+ \subsection{15 Nov 2023}
+ \begin{itemize}
+     \item Changed $\hat{m} \leftarrow \tilde{m} - c_H$ to $\hat{m} \leftarrow \tilde{m} + c_H$, and $\hat{m_2} \leftarrow \tilde{m_2} - c_H$ to $\hat{m_2} \leftarrow \tilde{m_2} + c_H$ in section 7.2.2.1, to fix possible revocation mix and match attack.
  \end{itemize}
  }{}
